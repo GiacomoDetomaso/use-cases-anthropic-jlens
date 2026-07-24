@@ -1,0 +1,5 @@
+langchain
+pydantic
+pandas
+PyYAML
+loguru
