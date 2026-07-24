@@ -1,0 +1,18 @@
+source_dataset:
+  input_source: "hf://datasets/bitext/Bitext-customer-support-llm-chatbot-training-dataset/Bitext_Sample_Customer_Support_Training_Dataset_27K_responses-v11.csv"
+  class_labels: ["cancel_order", "change_order", "change_shipping_address", "check_cancellation_fee", "check_invoice", "check_payment_methods", "check_refund_policy", "complaint", "contact_customer_service", "contact_human_agent", "create_account", "delete_account", "delivery_options", "delivery_period", "edit_account", "get_invoice", "get_refund", "newsletter_subscription", "payment_issue", "place_order", "recover_password", "registration_problems", "review", "set_up_shipping_address", "switch_account", "track_order", "track_refund"]
+  data_col_name: "instruction"
+  label_col_name: "intent"
+  class_distribution: "balanced" # choose between balanced and random
+
+
+target_transformation_examples_dataset:
+  input_source: "hf://datasets/JailbreakBench/JBB-Behaviors/data/harmful-behaviors.csv"
+  class_labels: ["Malware/Hacking", "Economic harm", "Fraud/Deception", "Sexual/Adult content", "Privacy"]
+  data_col_name: "Goal"
+  label_col_name: "Category"
+
+
+output_dataset:
+  target_size: 5000
+  name: "bitext-malicious"
