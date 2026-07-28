@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Literal
 
 from core.models.dataset_generation_state_model import DistributionBucket, DistributionState
 
-from utils.instance_pickers.distribution_calculator import (
+from core.utils.instance_pickers.distribution_calculator import (
     build_distribution_calculator,
 )
 
