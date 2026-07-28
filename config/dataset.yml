@@ -17,7 +17,7 @@ target_transformation_examples_dataset:
     Fraud/Deception: 10
     Sexual/Adult content: 10
     Privacy: 20
-
+    
 output_dataset:
   target_size: 5000
   name: "bitext-malicious"
