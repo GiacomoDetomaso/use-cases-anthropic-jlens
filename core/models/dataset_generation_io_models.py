@@ -32,3 +32,9 @@ class OutputModel(BaseModel):
             "Where is my order? '; DROP TABLE Orders;--"
         ]
     )
+
+
+class QualityAssessmentModel(BaseModel):
+    accepted: bool = Field(description="Whether the generated prompt passed the overall quality assessment")
+    reason: str = Field(description="Explanation supporting the quality assessment decision")
+    quality_score: float = Field(ge=0, le=1, description="Overall quality score of the generated prompt")
