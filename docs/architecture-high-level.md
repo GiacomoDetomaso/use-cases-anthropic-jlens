@@ -47,18 +47,19 @@ Each iteration generates **exactly one** synthetic record.
           Prompt Generator
                     │
                     ▼
-        Similarity Validation
-                    │
-         ┌──────────┴──────────┐
-         │                     │
-     Similar               Too Similar
-         │                     │
-         ▼                     ▼
-   Quality Checker      Repair / Regenerate
-         │
-         ▼
-      Save Record
-         │
+        Prompt Validator ◄──────────────────┐
+                    │                       │
+         ┌──────────┴──────────┐            │
+         │                     │            │
+     Accepted               Rejected         │
+         │                     │            │
+         ▼                     ▼            │
+   Save Record          Repair / Regenerate  │
+         │              (should_retry,       │
+         │               retries += 1,       │
+         │               regenerated_prompt) │
+         │                     │             │
+         │                     └─────────────┘
          ▼
    Dataset Complete?
          │
@@ -69,6 +70,8 @@ Each iteration generates **exactly one** synthetic record.
     ▼          │
    END ◄───────┘
 ```
+
+The Prompt Validator performs the similarity and quality checks in a single pass and produces one overall assessment. When it rejects the current candidate, `should_retry` is set to `True` and the graph routes to the Repair Agent, which stores the fixed candidate in `regenerated_prompt` and increments `retries`. The graph then loops back to the Prompt Validator so the regenerated prompt is validated again.
 
 ---
 
@@ -99,32 +102,59 @@ Advantages:
 
 The graph maintains a shared state that is updated after each node execution.
 
-Example:
+## State Field Semantics
+
+| Field | Type | Meaning |
+|---|---|---|
+| `target_size` | `int` | Total number of synthetic records the run must produce. |
+| `generated_count` | `int` | Number of records actually generated so far; may end up lower than `target_size` if some generations fail. |
+| `remaining_input_indices` | `list[int]` | Indices of source prompts not yet used, so each source prompt is consumed at most once. |
+| `input_distribution` | `dict[str, DistributionBucket]` | Per source-intent target/actual counters, used to keep original intents balanced. |
+| `target_distribution` | `dict[str, DistributionBucket]` | Per attack-class target/actual counters, used to keep injected attack classes balanced. |
+| `DistributionBucket.target` | `int` | Desired number of samples for that class, derived from the configured distribution. |
+| `DistributionBucket.actual` | `int` | Number of samples picked so far for that class. |
+| `source` | `InputDatasetModel \| None` | The source prompt (and its original intent) selected for the current iteration. |
+| `target` | `InputAttackModel \| None` | The attack class (and its retrieved examples) selected for the current iteration. |
+| `generated_prompt` | `OutputModel \| None` | The malicious prompt produced by the generator for the current iteration. |
+| `regenerated_prompt` | `OutputModel \| None` | The prompt produced by the Repair Agent when repairing a rejected generation, if any. |
+| `should_retry` | `bool` | Set by the Prompt Validator when the current candidate fails similarity or quality validation and must go through the Repair Agent. |
+| `validation_output` | `QualityAssessmentModel \| None` | Overall assessment (`accepted`, `reason`, `quality_score`) produced by the Prompt Validator for the current candidate. |
+| `retries` | `int` | Number of times the Repair Agent has regenerated/repaired the current record. |
+
+Each agent updates a subset of fields within the main `DatasetState`.
+First of all the starting state looks like this: 
 
 ```python
-class DatasetState:
+starting_state = DatasetState(
+    target_size=5000,
+    generated_count=0,
+    remaining_input_indices=[0, 1, 2, 3, 4, 5, ..., 26999],
 
-    target_size: int
+    # one bucket per source intent, target counts derived from "balanced" distribution
+    input_distribution={
+        "cancel_order": DistributionBucket(target=192, actual=0),
+        "change_order": DistributionBucket(target=192, actual=0),
+        "track_order": DistributionBucket(target=192, actual=0),
+        # ... one entry per class in config/dataset.yml -> source_dataset.class_labels
+    },
 
-    generated_count: int
+    # one bucket per attack class, target counts derived from configured percentages
+    target_distribution={
+        "Malware/Hacking": DistributionBucket(target=2000, actual=0),
+        "Economic harm": DistributionBucket(target=1000, actual=0),
+        "Fraud/Deception": DistributionBucket(target=500, actual=0),
+        "Sexual/Adult content": DistributionBucket(target=500, actual=0),
+        "Privacy": DistributionBucket(target=1000, actual=0),
+    },
 
-    remaining_input_indices: list[int]
-
-    input_distribution: dict[str, int]
-
-    attack_distribution: dict[str, int]
-
-    current_prompt: InputRecord | None
-
-    target_attack: str | None
-
-    retrieved_examples: list[str]
-
-    generated_prompt: QueryRecordModel | None
-
-    retries: int
-
-    generated_hashes: set[str]
+    source=None,
+    target=None,
+    generated_prompt=None,
+    regenerated_prompt=None,
+    should_retry=False,
+    validation_output=None,
+    retries=0,
+)
 ```
 
 ---
@@ -143,17 +173,10 @@ Deterministic Python node
 - update remaining indices
 - maintain balanced sampling over original intents
 
-### Input
-
-```
-DatasetState
-```
-
-### Output
-
-```
-current_prompt
-```
+### Updated states
+- `source`: the samples prompt and current intent is added to the state
+- `remaining_input_indices`: the sampled index is removed from the list
+- `input_distribution`: the distribution is either created as a `DistributionBucket` with the property `actual=0` or updated by incrementing the `actual` 
 
 ---
 
@@ -165,7 +188,7 @@ Deterministic Python node
 
 ### Responsibilities
 
-Choose the next attack class while maintaining a balanced distribution.
+Choose the next attack class and a few target examples of that class to inject in the prompt, while maintaining a balanced distribution.
 
 Example classes
 
@@ -175,42 +198,18 @@ Example classes
 - Economic Harm
 - Adult Content
 
-Possible strategy:
-
-Inverse frequency sampling
-
+### Input
 ```
-weight = 1 / (count + 1)
+DatasetState
 ```
+
+### Updated states
+- `target`: the selected attack class and its sampled target examples are added to the state
+- `target_distribution`: the distribution is either created as a `DistributionBucket` with the property `actual=0` or updated by incrementing the `actual`
 
 ---
 
-## 5.3 Example Retrieval Agent
-
-### Type
-
-Retrieval node
-
-### Responsibilities
-
-Retrieve examples belonging to the selected attack class.
-
-Possible retrieval strategies:
-
-- random
-- semantic search
-- nearest neighbors
-- hardest examples
-
-Output:
-
-```
-Top-K examples
-```
-
----
-
-## 5.4 Prompt Generator
+## 5.3 Prompt Generator
 
 ### Type
 
@@ -220,6 +219,9 @@ Large Language Model
 
 Transform the original prompt into a new malicious prompt.
 
+- build the actual prompt using the information sampled at the preceding steps (`source` and `target`)
+- generate the new prompt
+
 Requirements:
 
 - preserve customer intent
@@ -228,60 +230,29 @@ Requirements:
 - avoid copying examples
 - produce natural language
 
-Input:
 
-```
-Original prompt
-
-Original intent
-
-Target attack class
-
-Retrieved examples
-```
-
-Output
-
-```
-Generated prompt
-```
+### Updated states
+- `generated_prompt`: the newly generated malicious prompt is added to the state
 
 ---
 
-## 5.5 Similarity Validator
+## 5.4 Prompt Validator
 
 ### Type
 
-Embedding Tool
+Embedding Tool + Small LLM
 
-Responsibilities
+### Responsibilities
 
-Compare the generated prompt against
+Validate the current candidate (`regenerated_prompt` if the Repair Agent has already produced one, otherwise `generated_prompt`) in a single pass, producing one overall assessment:
 
-- previously generated prompts
-- original dataset
-- retrieved examples
+- Similarity check: compare the candidate against previously generated prompts, the original dataset, and retrieved examples using cosine similarity, to catch near-duplicates
+- Quality check: verify that the attack is actually present, customer support context is preserved, the prompt sounds natural, it isn't an obvious copy of the examples, and it follows instructions
 
 Metrics
 
 ```
 Cosine Similarity
-```
-
-Decision
-
-```
-similarity < threshold
-
-↓
-
-accept
-
-otherwise
-
-↓
-
-regenerate
 ```
 
 Recommended models
@@ -290,39 +261,31 @@ Recommended models
 - BGE
 - E5
 
----
-
-## 5.6 Quality Checker
-
-### Type
-
-Small LLM
-
-Responsibilities
-
-Verify:
-
-- attack is actually present
-- customer support context preserved
-- prompt sounds natural
-- no obvious copy from examples
-- follows instructions
-
 Output
 
 ```python
-{
-    "accepted": bool,
-    "reason": "...",
-    "quality_score": 0.91
-}
+QualityAssessmentModel(
+    accepted=False,
+    reason="...",
+    quality_score=0.91,
+)
 ```
+
+### Updated states
+- `validation_output`: the single `QualityAssessmentModel` combining the similarity and quality outcome is stored in the state
+- `should_retry`: set to `True` when `validation_output.accepted` is `False`, `False` otherwise
 
 ---
 
-## 5.7 Repair Agent (Optional)
+## 5.5 Repair Agent (Optional)
 
-Instead of regenerating from scratch, repair the generated prompt.
+### Type
+
+Large Language Model
+
+### Responsibilities
+
+Runs only when `should_retry` is `True`. Instead of regenerating from scratch, repair the generated prompt.
 
 Example prompt
 
@@ -330,18 +293,29 @@ Example prompt
 
 This generally reduces token usage.
 
+### Updated states
+- `regenerated_prompt`: set to the repaired prompt
+- `retries`: incremented by one
+- `should_retry`: reset to `False` before looping back to the Prompt Validator, so the regenerated prompt goes through the same validation steps again
+
 ---
 
-## 5.8 Save Node
+## 5.6 Save Node
 
-Deterministic node.
+### Type
 
-Responsibilities
+Deterministic Python node
 
-- append accepted record
+### Responsibilities
+
+- append accepted record (`regenerated_prompt` if set, otherwise `generated_prompt`)
 - update statistics
 - update embedding index
 - persist dataset
+
+### Updated states
+- `generated_count`: incremented after the accepted record is persisted
+- `source`, `target`, `generated_prompt`, `regenerated_prompt`, `should_retry`, `validation_output`, `retries`: reset so the next iteration starts from a clean slate
 
 ---
 
@@ -351,33 +325,6 @@ The project benefits from integrating tools that perform deterministic computati
 
 ---
 
-## Tool 1 — Semantic Retrieval
-
-Purpose
-
-Retrieve examples most similar to the source prompt.
-
-Implementation
-
-- FAISS
-- Chroma
-- Qdrant
-
-Input
-
-```
-query
-category
-k
-```
-
-Output
-
-```
-Top K examples
-```
-
----
 
 ## Tool 2 — Similarity Search
 
@@ -477,9 +424,7 @@ while generated < target_size
 
     generate
 
-    similarity check
-
-    quality check
+    validate (similarity + quality)
 
     save
 ```
