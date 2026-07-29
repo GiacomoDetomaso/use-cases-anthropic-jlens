@@ -6,6 +6,7 @@ from core.models.dataset_generation_io_models import (
     OutputModel,
 )
 
+
 class DistributionBucket(BaseModel):
     target: int = Field(ge=0, description="Target number of samples for the class")
     actual: int = Field(default=0, ge=0, description="Actual number of samples picked for the class")

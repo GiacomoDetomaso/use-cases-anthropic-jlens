@@ -1,7 +1,7 @@
+import random
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 
-import random
 
 class AbstractDistributionCalculator(ABC):
     """Base class for calculating target counts per dataset class.
@@ -97,7 +97,7 @@ class AbstractDistributionCalculator(ABC):
             If the implementation cannot satisfy ``target_size`` under its
             capacity constraints.
         """
-        pass
+        ...
 
     def _balanced_unconstrained_targets(self) -> dict[str, int]:
         """Calculate balanced targets without capacity constraints.

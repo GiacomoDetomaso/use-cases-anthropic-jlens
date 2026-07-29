@@ -3,6 +3,7 @@ from collections.abc import Sequence
 
 import pandas as pd
 
+
 class DatasetClassSampler:
     def __init__(self, dataset: pd.DataFrame, data_col_name: str, label_col_name: str, seed: int | None = None):
         self.dataset = dataset

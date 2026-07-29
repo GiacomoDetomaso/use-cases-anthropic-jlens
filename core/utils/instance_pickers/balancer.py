@@ -4,8 +4,10 @@ import random
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Literal
 
-from core.models.dataset_generation_state_model import DistributionBucket, DistributionState
-
+from core.models.dataset_generation_state_model import (
+    DistributionBucket,
+    DistributionState,
+)
 from core.utils.instance_pickers.distribution_calculator import (
     build_distribution_calculator,
 )
@@ -22,7 +24,7 @@ class DistributionBalancer:
         target_size: int, 
         strategy: DistributionStrategy, 
         seed: int | None = None,
-        dataset_class_count: dict[str, int]=None
+        dataset_class_count: dict[str, int] | None=None
     ):
         if not class_labels:
             raise ValueError("class_labels cannot be empty")
@@ -39,7 +41,7 @@ class DistributionBalancer:
         dataset_settings: DatasetSettings, 
         target_size: int, 
         seed: int | None = None,
-        dataset_class_count: dict[str, int]=None
+        dataset_class_count: dict[str, int] | None=None
     ):
         return cls(
             class_labels=dataset_settings.class_labels,
@@ -108,7 +110,7 @@ class DistributionBalancer:
                 return calculator.balanced_targets()
             case "random":
                 return calculator.random_targets()
-            case isinstance(self.strategy, Mapping):
+            case isinstance(self.strategy, Mapping):  # noqa: F841
                 return calculator.percentage_targets(self.strategy)
             case _:
                 raise ValueError(f"Unsupported distribution strategy: {self.strategy}")
