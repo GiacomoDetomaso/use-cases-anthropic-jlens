@@ -1,11 +1,14 @@
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
-CONFIG_PATH = Path(__file__).resolve().parent / "config" / "dataset.yml"
+CONFIG_DIR = Path(__file__).resolve().parent / "config"
+CONFIG_PATH = CONFIG_DIR / "dataset.yml"
+AI_MODELS_CONFIG_PATH = CONFIG_DIR / "ai_models.yml"
+PROMPTS_CONFIG_PATH = CONFIG_DIR / "dataset_generator_prompt.yml"
 
 ClassDistribution = Literal["balanced", "random"] | dict[str, float]
 
@@ -50,16 +53,46 @@ class OutputDatasetSettings(BaseModel):
     name: str
 
 
+class AIModelSettings(BaseModel):
+    model_name: str
+    provider: str
+    generation_params: dict[str, Any] = Field(default_factory=dict)
+
+
+class AIModelsSettings(BaseModel):
+    generation: AIModelSettings
+    validation: AIModelSettings
+    embedding: AIModelSettings
+
+
+class PromptTemplateSettings(BaseModel):
+    system: str
+    user: str
+
+
 class Settings(BaseModel):
     source_dataset: DatasetSettings
     target_transformation_examples_dataset: DatasetSettings
     output_dataset: OutputDatasetSettings
+    ai_models: AIModelsSettings
+    prompts: PromptTemplateSettings
 
 
-def _load_config(config_path: Path = CONFIG_PATH) -> Settings:
-    with open(config_path, "r", encoding="utf-8") as f:
-        raw_config = yaml.safe_load(f)
-    return Settings(**raw_config)
+def _read_yaml(path: Path) -> dict:
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def _load_config() -> Settings:
+    dataset_config = _read_yaml(CONFIG_PATH)
+    ai_models_config = _read_yaml(AI_MODELS_CONFIG_PATH)
+    prompts_config = _read_yaml(PROMPTS_CONFIG_PATH)
+
+    return Settings(
+        **dataset_config,
+        ai_models=ai_models_config,
+        prompts=prompts_config,
+    )
 
 
 @lru_cache(maxsize=1)

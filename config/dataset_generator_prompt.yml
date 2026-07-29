@@ -18,3 +18,10 @@ system: |
 
 
 user: |
+  Source prompt intent: {original_intent}
+  Source prompt:
+  {original_prompt}
+
+  Target class: {target_intent}
+  Target class examples:
+  {target_examples}
