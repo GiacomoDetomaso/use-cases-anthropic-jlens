@@ -1,11 +1,10 @@
 import pandas as pd
 
 from core.models.dataset_generation_io_models import InputAttackModel, InputDatasetModel
-from core.models.dataset_generation_state_model import DocumentState
-from settings import DatasetSettings, settings
-
-from core.utils.instance_pickers.sampler import DatasetClassSampler
+from core.models.dataset_generation_state_model import DatasetState
 from core.utils.instance_pickers.balancer import DistributionBalancer
+from core.utils.instance_pickers.sampler import DatasetClassSampler
+from settings import DatasetSettings, settings
 
 
 class PickerInputDatasetNode:
@@ -33,7 +32,7 @@ class PickerInputDatasetNode:
             dataset_class_count=self._dataset_class_count,
         )
 
-    def __call__(self, state: DocumentState) -> DocumentState:
+    def __call__(self, state: DatasetState) -> DatasetState:
         input_distribution = state.input_distribution or self.balancer.init_distribution()
 
         class_name = self.balancer.pick_class(input_distribution)
@@ -60,7 +59,7 @@ class PickerTargetDatasetNode:
             seed=seed,
         )
 
-    def __call__(self, state: DocumentState) -> DocumentState:
+    def __call__(self, state: DatasetState) -> DatasetState:
         target_distribution = state.target_distribution or self.balancer.init_distribution()
         class_name = self.balancer.pick_class(target_distribution)
         examples = self.sampler.sample_many(class_name, self.examples_count)
