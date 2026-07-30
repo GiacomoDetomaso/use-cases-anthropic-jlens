@@ -60,25 +60,26 @@ class DistributionBalancer:
         }
 
     def pick_class(self, distribution: DistributionState) -> str:
-        priorities = {
-            class_name: distribution[class_name].target - distribution[class_name].actual
-            for class_name in distribution
-        }
-        
-        if not priorities:
+        if not distribution:
             raise ValueError("Distribution cannot be empty")
 
-        max_needed = max(priorities.values())
-        if max_needed <= 0:
+        remaining_by_class = {
+            class_name: bucket.target - bucket.actual
+            for class_name, bucket in distribution.items()
+            if bucket.actual < bucket.target
+        }
+
+        if not remaining_by_class:
             raise ValueError("All classes already reached their targets")
 
-        weighted_classes = [
+        max_remaining = max(remaining_by_class.values())
+        most_needed_classes = [
             class_name
-            for class_name, priority in priorities.items()
-            if priority >= max_needed * 0.8
+            for class_name, remaining in remaining_by_class.items()
+            if remaining == max_remaining
         ]
 
-        return self._rng.choice(weighted_classes)
+        return self._rng.choice(most_needed_classes)
 
     def update_class_distribution(
         self, distribution: DistributionState, 
