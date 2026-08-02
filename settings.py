@@ -82,7 +82,7 @@ class VllmParamSettings(BaseModel):
     
 
 class VllmSettings(BaseModel):
-    vllm_health_seconds: int = Field(default=0.5, gt=0)
+    health_sleep_seconds: int = Field(default=0.5, gt=0)
     vllm_params: list[VllmParamSettings]
 
     @model_validator(mode="after")

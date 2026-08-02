@@ -4,7 +4,7 @@ workers: 1
 inference:
   mode: "vllm" # either vllm or no_inference_engine
   vllm: 
-    vllm_health_seconds: 3
+    health_sleep_seconds: 3
     vllm_params:
       - name: "port"
         value: 8080
