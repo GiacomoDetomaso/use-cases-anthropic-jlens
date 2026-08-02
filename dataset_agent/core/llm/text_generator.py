@@ -5,7 +5,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
 from pydantic import BaseModel, ValidationError
 
-from core.models.dataset_generation_io_models import (
+from dataset_agent.models.dataset_generation_io_models import (
     InputAttackModel,
     InputDatasetModel,
 )

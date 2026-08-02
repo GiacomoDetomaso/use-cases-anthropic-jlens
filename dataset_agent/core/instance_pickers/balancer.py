@@ -4,11 +4,11 @@ import random
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Literal
 
-from core.models.dataset_generation_state_model import (
+from dataset_agent.models.dataset_generation_state_model import (
     DistributionBucket,
     DistributionState,
 )
-from core.utils.instance_pickers.distribution_calculator import (
+from dataset_agent.core.instance_pickers.distribution_calculator import (
     build_distribution_calculator,
 )
 

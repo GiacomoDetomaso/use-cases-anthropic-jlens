@@ -1,7 +1,7 @@
 import contextlib
 
 from settings import settings
-from core.utils.inference.vllm import start_vllm_server
+from dataset_agent.core.inference.vllm import start_vllm_server
 
 from llm.ai_model_client_builder import get_generation_chat_model, get_validation_chat_model
 
