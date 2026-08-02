@@ -44,13 +44,16 @@ def generate(
 ) -> type[BaseModel]:
     llm = chat_model.with_structured_output(output_schema)
 
+    inference_settings = settings.workflow.inference
+
     messages = _build_generation_messages(source, target)
 
     retries = 0
 
     while retries < _INTERNAL_RETRIES:
         try:
-            if settings.workflow.inference.mode == "vllm":
+            
+            if inference_settings.mode == "vllm" and inference_settings.vllm.invoke_mode == "async":
                 response = llm.ainvoke(messages)
             else:
                 response = llm.invoke(messages)

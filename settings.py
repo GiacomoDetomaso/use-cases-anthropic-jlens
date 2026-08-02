@@ -83,6 +83,7 @@ class VllmParamSettings(BaseModel):
 
 class VllmSettings(BaseModel):
     health_sleep_seconds: int = Field(default=0.5, gt=0)
+    invoke_mode: Literal["sync", "async"]
     vllm_params: list[VllmParamSettings]
 
     @model_validator(mode="after")
