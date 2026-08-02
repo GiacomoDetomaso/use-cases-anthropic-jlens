@@ -3,12 +3,13 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, computed_field
 
 CONFIG_DIR = Path(__file__).resolve().parent / "config"
 CONFIG_PATH = CONFIG_DIR / "dataset.yml"
 AI_MODELS_CONFIG_PATH = CONFIG_DIR / "ai_models.yml"
 PROMPTS_CONFIG_PATH = CONFIG_DIR / "dataset_generator_prompt.yml"
+WORKFLOW_CONFIG_PATH = CONFIG_DIR / "workflow.yml"
 
 ClassDistribution = Literal["balanced", "random"] | dict[str, float]
 
@@ -70,12 +71,80 @@ class PromptTemplateSettings(BaseModel):
     user: str
 
 
+class VllmParamSettings(BaseModel):
+    name: str
+    value: str | int | float
+
+    @computed_field
+    @property
+    def value_str(self):
+        return str(self.value)
+    
+
+class VllmSettings(BaseModel):
+    vllm_health_seconds: int = Field(default=0.5, gt=0)
+    vllm_params: list[VllmParamSettings]
+
+    @model_validator(mode="after")
+    def validate(self):
+        names = [p.name for p in self.vllm_params]
+
+        if len(names) != len(set(names)):
+            raise ValueError(
+                "Some parameter names are duplicated. Cannot build CLI command."
+            )
+
+        if "port" not in names:
+            raise ValueError("Mandatory `port` parameter not configured")
+
+        return self
+
+    @computed_field
+    @property
+    def _port(self) -> int:
+        for param in self.vllm_params:
+            if param.name == "port":
+                return int(param.value)
+            
+        raise RuntimeError("Port should always exist after validation")
+
+    def get_vllm_cmd(self, model_name: str) -> list[str]:
+        cmd = [
+            "python", "-m", "vllm.entrypoints.openai.api_server",
+            "--model", model_name,
+        ]
+
+        for param in self.vllm_params:
+            cmd.extend([f"--{param.name}", str(param.value)])
+
+        return cmd
+
+    def get_base_url(self):
+        return f"http://localhost:{self._port}/v1"
+
+    def get_health_url(self):
+        # The __port attribute is certainly configured since if not found a ValueError is raised
+        return f"http://localhost:{self._port}/health"
+
+
+class WorkflowInferenceSettings(BaseModel):
+    mode: Literal["no_inference_engine", "vllm"]
+    vllm: VllmSettings | None
+
+
+class WorkflowSettings(BaseModel):
+    generation_schema_fix_retries: int = Field(default=0, gt=0, lt=5)
+    workers: int = Field(default=1, ge=1)
+    inference: WorkflowInferenceSettings
+
+
 class Settings(BaseModel):
     source_dataset: DatasetSettings
     target_transformation_examples_dataset: DatasetSettings
     output_dataset: OutputDatasetSettings
     ai_models: AIModelsSettings
     prompts: PromptTemplateSettings
+    workflow: WorkflowSettings
 
 
 def _read_yaml(path: Path) -> dict:
@@ -87,11 +156,13 @@ def _load_config() -> Settings:
     dataset_config = _read_yaml(CONFIG_PATH)
     ai_models_config = _read_yaml(AI_MODELS_CONFIG_PATH)
     prompts_config = _read_yaml(PROMPTS_CONFIG_PATH)
+    workflow_config = _read_yaml()
 
     return Settings(
         **dataset_config,
         ai_models=ai_models_config,
         prompts=prompts_config,
+        workflow=workflow_config
     )
 
 

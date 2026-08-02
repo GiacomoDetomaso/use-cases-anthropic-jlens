@@ -1,28 +1,20 @@
 generation:
-  provider: "huggingface"
-  model_name: "C:/models/qwen3-8b"
+  provider: openai
+  model_name: Qwen/Qwen2.5-7B-Instruct
   generation_params:
-    task: "text-generation"
-    device: 0 # -1 for CPU, 0/1/... for a specific GPU
-    model_kwargs:
-      torch_dtype: "auto"
-    pipeline_kwargs:
-      max_new_tokens: 512
-      temperature: 0.9
-      do_sample: true
+    base_url: http://localhost:8000/v1
+    api_key: dummy
+    temperature: 0.7
+    max_tokens: 512
 
 validation:
-  provider: "huggingface"
-  model_name: "C:/models/qwen3-8b"
+  provider: openai
+  model_name: Qwen/Qwen2.5-7B-Instruct
   generation_params:
-    task: "text-generation"
-    device: 0 # -1 for CPU, 0/1/... for a specific GPU
-    model_kwargs:
-      torch_dtype: "auto"
-    pipeline_kwargs:
-      max_new_tokens: 512
-      temperature: 0.9
-      do_sample: true
+    base_url: http://localhost:8000/v1
+    api_key: dummy
+    temperature: 0.7
+    max_tokens: 512
 
 embedding:
   provider: "openai"

@@ -1,0 +1,16 @@
+generation_schema_fix_retries: 2
+workers: 1 
+
+inference:
+  mode: "vllm" # either vllm or no_inference_engine
+  vllm: 
+    vllm_health_seconds: 3
+    vllm_params:
+      - name: "port"
+        value: 8080
+      - name: "dtype"
+        value: "float16"
+      - name: "gpu-memory-utilization"
+        value: 0.85
+      - name: "max-model-len"
+        value: 4096
