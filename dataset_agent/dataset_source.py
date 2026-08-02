@@ -43,11 +43,6 @@ def _load_and_filter(config: _DatasetConfig) -> pd.DataFrame:
     except KeyError:
         logger.info("Label column '{}' not found while filtering by class_labels", label)
 
-    # Make the cached frame read-only: block in-place element mutation
-    # (e.g. df.iloc[0, 0] = ...) on the shared singleton instance.
-    for block_values in df._mgr.blocks:
-        block_values.values.flags.writeable = False
-
     return df
 
 

@@ -1,9 +1,9 @@
 import pandas as pd
 
-from core.models.dataset_generation_io_models import InputAttackModel, InputDatasetModel
-from core.models.dataset_generation_state_model import DatasetState
-from core.utils.instance_pickers.balancer import DistributionBalancer
-from core.utils.instance_pickers.sampler import DatasetClassSampler
+from dataset_agent.models.dataset_generation_io_models import InputAttackModel, InputDatasetModel
+from dataset_agent.models.dataset_generation_state_model import DatasetState
+from dataset_agent.core.instance_pickers.balancer import DistributionBalancer
+from dataset_agent.core.instance_pickers.sampler import DatasetClassSampler
 from settings import DatasetSettings, settings
 
 

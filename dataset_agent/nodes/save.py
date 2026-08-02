@@ -1,7 +1,6 @@
-import re
 
-from core.utils.writers import DatasetWriter, SyntheticRecord
-from core.models.dataset_generation_state_model import DatasetState
+from dataset_agent.core.writers import DatasetWriter, SyntheticRecord
+from dataset_agent.models.dataset_generation_state_model import DatasetState
 
 class SaveNode:
     def __init__(self, writer: DatasetWriter):

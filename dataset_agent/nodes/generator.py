@@ -1,7 +1,7 @@
-from core.models.dataset_generation_state_model import DatasetState, OutputModel
+from dataset_agent.models.dataset_generation_state_model import DatasetState, OutputModel
 
-from core.utils.llm.ai_model_client_builder import get_generation_chat_model
-from core.utils.llm.text_generator import generate, FailedGenerationException
+from dataset_agent.core.llm.ai_model_client_builder import get_generation_chat_model
+from dataset_agent.core.llm.text_generator import generate, FailedGenerationException
 
 
 def generator_node(state: DatasetState) -> DatasetState:

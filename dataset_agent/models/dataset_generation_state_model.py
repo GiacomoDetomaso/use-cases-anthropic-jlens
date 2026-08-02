@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from core.models.dataset_generation_io_models import (
+from dataset_agent.models.dataset_generation_io_models import (
     InputAttackModel,
     InputDatasetModel,
     OutputModel,
