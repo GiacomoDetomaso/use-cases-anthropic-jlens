@@ -50,7 +50,10 @@ def generate(
 
     while retries < _INTERNAL_RETRIES:
         try:
-            response = llm.invoke(messages)
+            if settings.workflow.inference.mode == "vllm":
+                response = llm.ainvoke(messages)
+            else:
+                response = llm.invoke(messages)
 
             return response
         except ValidationError as e:
