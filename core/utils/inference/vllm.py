@@ -1,11 +1,10 @@
 import subprocess
 import time
 import requests
-import contextlib
 
 from settings import settings
 
-def _start_vllm_server() -> subprocess.Popen:
+def start_vllm_server() -> subprocess.Popen:
     """Reads YAML config and launches a background vLLM OpenAI-compatible server."""
     model_name = settings.ai_models.generation.model_name
 
@@ -33,19 +32,6 @@ def _start_vllm_server() -> subprocess.Popen:
         if process.poll() is not None:
             raise RuntimeError("vLLM server process failed to start. Check terminal output/logs.")
             
-        time.sleep(3)
+        time.sleep(settings.workflow.inference.vllm.health_sleep_seconds)
         
     return process
-
-
-@contextlib.contextmanager
-def vllm_server_context(config_path: str, port: int = 8000):
-    """Context manager to auto-start and cleanly shut down vLLM."""
-    process = _start_vllm_server(config_path, port)
-
-    try:
-        yield process
-    finally:
-        print("🛑 Terminating vLLM server process...")
-        process.terminate()
-        process.wait()
