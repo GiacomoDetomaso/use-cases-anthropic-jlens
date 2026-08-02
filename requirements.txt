@@ -4,3 +4,4 @@ pydantic
 pandas
 PyYAML
 loguru
+grandalf
