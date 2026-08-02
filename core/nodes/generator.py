@@ -1,18 +1,26 @@
-from core.models.dataset_generation_state_model import DatasetState
-from core.utils.generator.ai_model_client_builder import build_chat_model
-from core.utils.generator.text_generator import TextGenerator
-from settings import AIModelSettings, settings
+from core.models.dataset_generation_state_model import DatasetState, OutputModel
+
+from core.utils.llm.ai_model_client_builder import get_generation_chat_model
+from core.utils.llm.text_generator import generate, FailedGenerationException
 
 
-class GeneratorNode:
-    def __init__(self, ai_model_settings: AIModelSettings | None = None):
-        ai_model_settings = ai_model_settings or settings.ai_models.generation
-        self.text_generator = TextGenerator(build_chat_model(ai_model_settings))
+def generator_node(state: DatasetState) -> DatasetState:
+    try:
+        generated_prompt = generate(
+            chat_model=get_generation_chat_model(),
+            source=state.source,
+            target=state.target,
+            output_schema=OutputModel
+        )
+    except FailedGenerationException:
+        generated_prompt = None
 
-    def __call__(self, state: DatasetState) -> DatasetState:
-        if state.source is None or state.target is None:
-            raise ValueError("GeneratorNode requires both 'source' and 'target' to be set in state")
+    return state.model_copy(update={
+        "generated_prompt": generated_prompt
+    })
 
-        generated_prompt = self.text_generator.generate(state.source, state.target)
+def generation_router(state: DatasetState) -> str:
+    if state.generated_prompt is None:
+        return "retry"
 
-        return state.model_copy(update={"generated_prompt": generated_prompt})
+    return "success"
