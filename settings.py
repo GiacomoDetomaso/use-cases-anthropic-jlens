@@ -77,7 +77,7 @@ class VllmParamSettings(BaseModel):
 
     @computed_field
     @property
-    def value_str(self):
+    def value_str(self) -> str:
         return str(self.value)
     
 
@@ -156,7 +156,7 @@ def _load_config() -> Settings:
     dataset_config = _read_yaml(CONFIG_PATH)
     ai_models_config = _read_yaml(AI_MODELS_CONFIG_PATH)
     prompts_config = _read_yaml(PROMPTS_CONFIG_PATH)
-    workflow_config = _read_yaml()
+    workflow_config = _read_yaml(WORKFLOW_CONFIG_PATH)
 
     return Settings(
         **dataset_config,
