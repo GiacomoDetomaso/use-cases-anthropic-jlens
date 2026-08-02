@@ -4,7 +4,7 @@ workers: 1
 inference:
   mode: "vllm" # either vllm or no_inference_engine
   vllm: 
-    invoke_mode: "async"
+    invoke_mode: "sync"
     health_sleep_seconds: 3
     vllm_params:
       - name: "port"
