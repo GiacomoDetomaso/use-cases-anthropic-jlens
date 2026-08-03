@@ -10,6 +10,8 @@ def start_vllm_server() -> subprocess.Popen:
     """Reads YAML config and launches a background vLLM OpenAI-compatible server."""
     model_name = settings.ai_models.generation.model_name
 
+    health_iteration = 0
+
     # Construct CLI command dynamically
     cmd = settings.workflow.inference.vllm.get_vllm_cmd(model_name=model_name)
 
@@ -25,11 +27,16 @@ def start_vllm_server() -> subprocess.Popen:
         try:
             response = requests.get(health_url)
             if response.status_code == 200:
-                logger.debug("✅ vLLM server is up and ready to accept requests!")
+                health_iteration += 1
+
+                if health_iteration == 1:
+                    logger.info("✅ vLLM server is up and ready to accept requests!")
+                elif health_iteration > 1:
+                    logger.info("✅ vLLM server is up and running!")
+
                 break
         except requests.exceptions.ConnectionError as e:
-            logger.error(f"Connection error: {e}")
-            pass
+            logger.warning("Attempting to connect")
         
         # Check if process died prematurely (e.g. OOM or wrong path)
         if process.poll() is not None:
