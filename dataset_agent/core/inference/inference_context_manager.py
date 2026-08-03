@@ -3,7 +3,10 @@ import contextlib
 from settings import settings
 from dataset_agent.core.inference.vllm import start_vllm_server
 
-from llm.ai_model_client_builder import get_generation_chat_model, get_validation_chat_model
+from dataset_agent.core.llm.ai_model_client_builder import (
+    get_generation_chat_model, 
+    get_validation_chat_model
+)
 
 @contextlib.contextmanager
 def inference_environment():
