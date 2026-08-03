@@ -19,5 +19,5 @@ target_transformation_examples_dataset:
     Privacy: 20
     
 output_dataset:
-  target_size: 5000
+  target_size: 50
   name: "bitext-malicious"
