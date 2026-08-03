@@ -6,6 +6,8 @@ from dataset_agent.core.instance_pickers.balancer import DistributionBalancer
 from dataset_agent.core.instance_pickers.sampler import DatasetClassSampler
 from settings import DatasetSettings, settings
 
+from loguru import logger
+
 
 class PickerInputDatasetNode:
     def __init__(self, dataset: pd.DataFrame, dataset_settings: DatasetSettings, seed: int | None = None):
@@ -38,6 +40,8 @@ class PickerInputDatasetNode:
         class_name = self.balancer.pick_class(input_distribution)
         selected_index, row = self.sampler.sample_one(class_name, state.remaining_input_indices)
 
+        logger.info(f"Picked index {selected_index} for class {class_name}")        
+
         return state.model_copy(update={
             "source": InputDatasetModel(
                 original_prompt=row[self.sampler.data_col_name],
@@ -68,6 +72,8 @@ class PickerTargetDatasetNode:
             f"Example {index + 1}: {row[self.sampler.data_col_name]}"
             for index, row in enumerate(examples)
         )
+
+        logger.info(f"Picked target examples for class {class_name}")
 
         return state.model_copy(update={
             "target": InputAttackModel(

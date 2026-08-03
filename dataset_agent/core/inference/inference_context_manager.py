@@ -8,6 +8,8 @@ from dataset_agent.core.llm.ai_model_client_builder import (
     get_validation_chat_model
 )
 
+from loguru import logger
+
 @contextlib.contextmanager
 def inference_environment():
     """Context manager handling model server lifecycle based on active settings."""
@@ -18,7 +20,7 @@ def inference_environment():
         try:
             yield process
         finally:
-            print("🛑 Terminating vLLM server process...")
+            logger.debug("🛑 Terminating vLLM server process...")
             process.terminate()
             process.wait()
 

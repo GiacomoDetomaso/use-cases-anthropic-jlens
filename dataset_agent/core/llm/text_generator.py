@@ -12,6 +12,8 @@ from dataset_agent.models.dataset_generation_io_models import (
 
 from settings import settings
 
+from loguru import logger
+
 _INTERNAL_RETRIES = settings.workflow.generation_schema_fix_retries
 
 class FailedGenerationException(Exception):
@@ -52,18 +54,25 @@ def generate(
 
     while retries < _INTERNAL_RETRIES:
         try:
-            
+            logger.info(f"Invoking Model. Attempt: {retries}")
+
             if inference_settings.mode == "vllm" and inference_settings.vllm.invoke_mode == "async":
                 response = llm.ainvoke(messages)
             else:
                 response = llm.invoke(messages)
 
+            logger.info(f"Model invoked with success")
+
             return response
         except ValidationError as e:
+            logger.warning("Validation error")
+
             messages.append(AIMessage(response))
             messages.append(HumanMessage("The provided response does not satisfy the output schema. Read the error and fix it."))
             messages.append(HumanMessage(e.json(indent=4)))
 
             retries += 1
+
+    logger.error(f"Could not complete inference: {retries} / {_INTERNAL_RETRIES}. Raising exception")
 
     raise FailedGenerationException(retries=retries)

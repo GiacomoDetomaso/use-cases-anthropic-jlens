@@ -5,6 +5,10 @@ from dataset_agent.core.inference.inference_context_manager import inference_env
 
 from settings import settings
 
+from logger import setup_logger
+
+from loguru import logger
+
 def generate_dataset() -> None:
     initial_state = get_graph_initial_state()
     graph = build_and_compile_graph()
@@ -23,7 +27,14 @@ async def generate_dataset_async() -> None:
         graph.ainvoke(initial_state)
 
 def main() -> None:
-    if settings.workflow.inference.mode == "vllm" and settings.workflow.inference.vllm.invoke_mode == "async":
+    setup_logger()
+    inference_mode = settings.workflow.inference.mode
+    invoke_mode = settings.workflow.inference.vllm.invoke_mode
+
+    logger.info(f"Running inference mode {inference_mode}")
+
+    if inference_mode == "vllm" and invoke_mode == "async":
+        logger.info(f"Execute vllm inference in mode: {invoke_mode}")
         asyncio.run(generate_dataset_async())
     else:
         generate_dataset()

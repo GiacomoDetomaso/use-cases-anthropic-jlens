@@ -2,6 +2,8 @@
 from dataset_agent.core.writers import DatasetWriter, SyntheticRecord
 from dataset_agent.models.dataset_generation_state_model import DatasetState
 
+from loguru import logger
+
 class SaveNode:
     def __init__(self, writer: DatasetWriter):
         self.writer = writer
@@ -18,9 +20,13 @@ class SaveNode:
 
         self.writer.append(record)
 
+        generated_count = state.generated_count
+
+        logger(f"Data point {generated_count} generated")
+
         return state.model_copy(
             update={
-                "generated_count": state.generated_count + 1,
+                "generated_count": generated_count + 1,
                 "source": None,
                 "target": None,
                 "generated_prompt": None,

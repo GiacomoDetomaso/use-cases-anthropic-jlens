@@ -4,6 +4,8 @@ import requests
 
 from settings import settings
 
+from loguru import logger
+
 def start_vllm_server() -> subprocess.Popen:
     """Reads YAML config and launches a background vLLM OpenAI-compatible server."""
     model_name = settings.ai_models.generation.model_name
@@ -11,7 +13,7 @@ def start_vllm_server() -> subprocess.Popen:
     # Construct CLI command dynamically
     cmd = settings.workflow.inference.vllm.get_vllm_cmd(model_name=model_name)
 
-    print(f"🚀 Launching vLLM server for model: {model_name}...")
+    logger.info(f"🚀 Launching vLLM server for model: {model_name}...")
     
     # Spawn background process
     process = subprocess.Popen(cmd)
@@ -23,9 +25,10 @@ def start_vllm_server() -> subprocess.Popen:
         try:
             response = requests.get(health_url)
             if response.status_code == 200:
-                print("✅ vLLM server is up and ready to accept requests!")
+                logger.debug("✅ vLLM server is up and ready to accept requests!")
                 break
-        except requests.exceptions.ConnectionError:
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"Connection error: {e}")
             pass
         
         # Check if process died prematurely (e.g. OOM or wrong path)
