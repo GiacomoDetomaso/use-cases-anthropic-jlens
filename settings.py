@@ -116,7 +116,12 @@ class VllmSettings(BaseModel):
         ]
 
         for param in self.vllm_params:
-            cmd.extend([f"--{param.name}", str(param.value)])
+            extension = [f"--{param.name}"]
+
+            if not isinstance(param.value, bool):
+                extension.append(param.value_str)
+
+            cmd.extend(extension)
 
         return cmd
 

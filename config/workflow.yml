@@ -9,9 +9,15 @@ inference:
     vllm_params:
       - name: "port"
         value: 8080
-      - name: "dtype"
-        value: "float16"
       - name: "gpu-memory-utilization"
-        value: 0.85
+        value: 0.80
       - name: "max-model-len"
         value: 4096
+      - name: "quantization"
+        value: "marlin"
+      - name: "tensor-parallel-size"
+        value: 2
+      - name: "enable-prefix-caching"
+        value: True
+      - name: "enable-chunked-prefill"
+        value: True
