@@ -106,12 +106,11 @@ class DistributionBalancer:
             dataset_class_count=self.dataset_class_count,
         )
 
-        match self.strategy:
-            case "balanced":
-                return calculator.balanced_targets()
-            case "random":
-                return calculator.random_targets()
-            case isinstance(self.strategy, Mapping):  # noqa: F841
-                return calculator.percentage_targets(self.strategy)
-            case _:
-                raise ValueError(f"Unsupported distribution strategy: {self.strategy}")
+        if self.strategy == "balanced":
+            return calculator.balanced_targets()
+        elif self.strategy == "random":
+            return calculator.random_targets()
+        elif isinstance(self.strategy, Mapping):
+            return calculator.percentage_targets(self.strategy)
+        else:
+            raise ValueError(f"Unsupported distribution strategy: {self.strategy}")
