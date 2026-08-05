@@ -33,6 +33,7 @@ def start_vllm_server() -> subprocess.Popen:
     cmd = settings.workflow.inference.vllm.get_vllm_cmd(model_name=model_name)
 
     logger.info(f"🚀 Launching vLLM server for model: {model_name}...")
+    logger.info(f"Using the following commad: \n\n{cmd}")
     
     # Spawn background process
     process = subprocess.Popen(
