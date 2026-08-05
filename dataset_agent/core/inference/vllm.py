@@ -1,10 +1,27 @@
 import subprocess
 import time
 import requests
+import threading
 
 from settings import settings
 
 from loguru import logger
+
+def _forward_logs(pipe):
+    for line in iter(pipe.readline, ""):
+        line = line.rstrip()
+
+        if not line:
+            continue
+
+        if " ERROR " in line:
+            logger.error("[vllm] {}", line)
+        elif " WARNING " in line:
+            logger.warning("[vllm] {}", line)
+        else:
+            logger.info("[vllm] {}", line)
+
+    pipe.close()
 
 def start_vllm_server() -> subprocess.Popen:
     """Reads YAML config and launches a background vLLM OpenAI-compatible server."""
@@ -18,7 +35,19 @@ def start_vllm_server() -> subprocess.Popen:
     logger.info(f"🚀 Launching vLLM server for model: {model_name}...")
     
     # Spawn background process
-    process = subprocess.Popen(cmd)
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    threading.Thread(
+        target=_forward_logs,
+        args=(process.stdout,),
+        daemon=True,
+    ).start()
 
     # Wait for server readiness
     health_url = settings.workflow.inference.vllm.get_health_url()
