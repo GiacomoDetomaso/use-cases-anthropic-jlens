@@ -11,13 +11,15 @@ def _build_chat_model(ai_model_settings: AIModelSettings) -> BaseChatModel:
     """Instantiate the LangChain chat model wrapper matching `ai_model_settings.provider`."""
     inference_mode = settings.workflow.inference.mode
 
-    gen_param_dict = ai_model_settings.generation_params
+    gen_param_dict = {
+        **ai_model_settings.generation_params
+    }
 
     # Update the base_url param with the correct dynamically built one
     if inference_mode == "vllm":
-        gen_param_dict.update({
-            "base_url": settings.workflow.inference.vllm.get_base_url()
-        })
+        gen_param_dict["base_url"] = (
+            settings.workflow.inference.vllm.get_base_url()
+        )
 
     return init_chat_model(
         model=ai_model_settings.model_name,
@@ -28,11 +30,6 @@ def _build_chat_model(ai_model_settings: AIModelSettings) -> BaseChatModel:
 # TODO build the embedding model
 
 @lru_cache(maxsize=1)
-def get_generation_chat_model() -> BaseChatModel:
+def get_chat_model() -> BaseChatModel:
     """Lazy singleton accessor for the generation model."""
     return _build_chat_model(settings.ai_models.generation)
-
-@lru_cache(maxsize=1) 
-def get_validation_chat_model()-> BaseChatModel:
-    """Lazy singleton accessor for the generation model."""
-    return _build_chat_model(settings.ai_models.validation)

@@ -4,7 +4,7 @@ from settings import settings
 from dataset_agent.core.inference.vllm import start_vllm_server
 
 from dataset_agent.core.llm.ai_model_client_builder import (
-    get_generation_chat_model, 
+    get_chat_model, 
     get_validation_chat_model
 )
 
@@ -25,7 +25,7 @@ def inference_environment():
             process.wait()
 
             # Clear cached models if server restarts
-            get_generation_chat_model.cache_clear()
+            get_chat_model.cache_clear()
             get_validation_chat_model.cache_clear()
     else:
         # Direct LangChain mode (No server process needed)

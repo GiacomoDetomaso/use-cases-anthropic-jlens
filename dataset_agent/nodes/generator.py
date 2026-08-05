@@ -1,13 +1,13 @@
 from dataset_agent.models.dataset_generation_state_model import DatasetState, OutputModel
 
-from dataset_agent.core.llm.ai_model_client_builder import get_generation_chat_model
+from dataset_agent.core.llm.ai_model_client_builder import get_chat_model
 from dataset_agent.core.llm.text_generator import generate, FailedGenerationException
 
 
 def generator_node(state: DatasetState) -> DatasetState:
     try:
         generated_prompt = generate(
-            chat_model=get_generation_chat_model(),
+            chat_model=get_chat_model(),
             source=state.source,
             target=state.target,
             output_schema=OutputModel
