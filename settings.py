@@ -73,7 +73,7 @@ class PromptTemplateSettings(BaseModel):
 
 class VllmParamSettings(BaseModel):
     name: str
-    value: str | int | float
+    value: bool | str | int | float
 
     @computed_field
     @property
@@ -110,20 +110,25 @@ class VllmSettings(BaseModel):
         raise RuntimeError("Port should always exist after validation")
 
     def get_vllm_cmd(self, model_name: str) -> list[str]:
-        cmd = [
-            "python", "-m", "vllm.entrypoints.openai.api_server",
-            "--model", model_name,
-        ]
+            cmd = [
+                "python",
+                "-m",
+                "vllm.entrypoints.openai.api_server",
+                "--model",
+                str(model_name),
+            ]
 
-        for param in self.vllm_params:
-            extension = [f"--{param.name}"]
+            for param in self.vllm_params:
+                # Check strictly for boolean types
+                if isinstance(param.value, bool):
+                    if param.value:
+                        cmd.append(f"--{param.name}")
+                    else:
+                        cmd.append(f"--no-{param.name}")
+                else:
+                    cmd.extend([f"--{param.name}", param.value_str])
 
-            if not isinstance(param.value, bool):
-                extension.append(param.value_str)
-
-            cmd.extend(extension)
-
-        return cmd
+            return cmd
 
     def get_base_url(self):
         return f"http://localhost:{self._port}/v1"
