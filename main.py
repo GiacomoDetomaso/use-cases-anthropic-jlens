@@ -24,7 +24,7 @@ async def generate_dataset_async() -> None:
     
     # Wrap graph execution inside the environment
     with inference_environment():
-        graph.ainvoke(initial_state)
+        await graph.ainvoke(initial_state)
 
 def main() -> None:
     setup_logger()
