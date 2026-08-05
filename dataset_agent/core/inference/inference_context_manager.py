@@ -5,7 +5,6 @@ from dataset_agent.core.inference.vllm import start_vllm_server
 
 from dataset_agent.core.llm.ai_model_client_builder import (
     get_chat_model, 
-    get_validation_chat_model
 )
 
 from loguru import logger
@@ -26,7 +25,6 @@ def inference_environment():
 
             # Clear cached models if server restarts
             get_chat_model.cache_clear()
-            get_validation_chat_model.cache_clear()
     else:
         # Direct LangChain mode (No server process needed)
         yield None
