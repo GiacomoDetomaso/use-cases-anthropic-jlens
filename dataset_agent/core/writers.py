@@ -11,7 +11,7 @@ class SyntheticRecord:
 class DatasetWriter(ABC):
     def __init__(self, output_path: Path):
         self.output_path = output_path
-        self.dataset: list[SyntheticRecord] = {}
+        self.dataset: list[SyntheticRecord] = []
 
         output_path.mkdir(parents=True, exist_ok=True)
        
