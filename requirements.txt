@@ -1,5 +1,5 @@
 langchain
-langchain-huggingface
+langchain-openai
 pydantic
 pandas
 PyYAML
