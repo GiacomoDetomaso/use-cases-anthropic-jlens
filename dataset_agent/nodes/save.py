@@ -22,7 +22,7 @@ class SaveNode:
 
         generated_count = state.generated_count
 
-        logger(f"Data point {generated_count} generated")
+        logger.info(f"Data point {generated_count} generated")
 
         return state.model_copy(
             update={
