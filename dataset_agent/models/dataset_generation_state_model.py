@@ -16,7 +16,7 @@ DistributionState = dict[str, DistributionBucket]
 
 class DatasetState(BaseModel):
     target_size: int = Field(description="The size of the dataset to generate")
-    generated_count: int = Field(description="The number of the actual generated data samples. It can be lower than target size if some generation fails.")
+    index_to_generate: int = Field(description="The number of the actual generated data samples. It can be lower than target size if some generation fails.")
     remaining_input_indices: list[int] = Field(default_factory=list, description="Input indices of the source dataset not utilized during generation. Useful when target_size < dataset size")
 
     input_distribution: DistributionState = Field(default_factory=dict, description="Distribution of the input classes")
@@ -31,4 +31,5 @@ class DatasetState(BaseModel):
     should_retry: bool = Field(default=False, description="Set by the Similarity Validator or Quality Checker when the current prompt fails validation and must go through the Repair Agent")
     validation_output: QualityAssessmentModel | None = Field(default=None, description="Overall quality assessment produced by the Quality Checker for the current generated prompt")
 
+    last_checkpoint_index: int = Field(default=None, ge=0, description="The last data point index up until the result has been serialized")
     retries: int = Field(default=0, ge=0, description="Number of times the Repair Agent has regenerated/repaired the current record")

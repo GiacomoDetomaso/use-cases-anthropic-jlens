@@ -81,6 +81,6 @@ def build_and_compile_graph():
 def get_graph_initial_state():
     return DatasetState(
         target_size=settings.output_dataset.target_size,
-        generated_count=0,
+        index_to_generate=0,
         remaining_input_indices=source_dataset.index.tolist(),
     )
