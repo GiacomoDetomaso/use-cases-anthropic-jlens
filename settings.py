@@ -146,6 +146,7 @@ class WorkflowInferenceSettings(BaseModel):
 class WorkflowSettings(BaseModel):
     generation_schema_fix_retries: int = Field(default=0, gt=0, lt=5)
     workers: int = Field(default=1, ge=1)
+    save_checks: int = Field(default=1, ge=1)
     inference: WorkflowInferenceSettings
 
 
@@ -156,6 +157,13 @@ class Settings(BaseModel):
     ai_models: AIModelsSettings
     prompts: PromptTemplateSettings
     workflow: WorkflowSettings
+
+    @model_validator(mode="after")
+    def validate(self):
+        if self.workflow.save_checks > self.output_dataset.target_size:
+            raise ValueError(f"`save_checks` can't be higher than the actual dataset_size")
+
+        return self
 
 
 def _read_yaml(path: Path) -> dict:
