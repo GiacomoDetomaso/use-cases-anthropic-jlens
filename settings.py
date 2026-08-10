@@ -84,6 +84,7 @@ class VllmParamSettings(BaseModel):
 class VllmSettings(BaseModel):
     health_sleep_seconds: int = Field(default=0.5, gt=0)
     invoke_mode: Literal["sync", "async"]
+    warmup_step: bool
     vllm_params: list[VllmParamSettings]
 
     @model_validator(mode="after")
@@ -102,7 +103,7 @@ class VllmSettings(BaseModel):
 
     @computed_field
     @property
-    def _port(self) -> int:
+    def port(self) -> int:
         for param in self.vllm_params:
             if param.name == "port":
                 return int(param.value)
@@ -131,11 +132,11 @@ class VllmSettings(BaseModel):
             return cmd
 
     def get_base_url(self):
-        return f"http://localhost:{self._port}/v1"
+        return f"http://localhost:{self.port}/v1"
 
     def get_health_url(self):
         # The __port attribute is certainly configured since if not found a ValueError is raised
-        return f"http://localhost:{self._port}/health"
+        return f"http://localhost:{self.port}/health"
 
 
 class WorkflowInferenceSettings(BaseModel):
