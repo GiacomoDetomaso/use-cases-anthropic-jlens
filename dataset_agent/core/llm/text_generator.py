@@ -1,5 +1,5 @@
 """Invokes the generation chat model to produce a new malicious prompt."""
-from unittest.mock import Base
+from openai import LengthFinishReasonError
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
@@ -44,7 +44,7 @@ def generate(
     target: InputAttackModel,
     output_schema: type[BaseModel]
 ) -> type[BaseModel]:
-    llm = chat_model.with_structured_output(output_schema)
+    llm = chat_model.with_structured_output(output_schema, include_raw=True)
 
     inference_settings = settings.workflow.inference
 
@@ -56,20 +56,67 @@ def generate(
         try:
             logger.info(f"Invoking Model. Attempt: {retries}")
 
+            # TODO error should use two separate functions
             if inference_settings.mode == "vllm" and inference_settings.vllm.invoke_mode == "async":
                 response = llm.ainvoke(messages)
             else:
                 response = llm.invoke(messages)
 
+            if response["parsing_error"]:
+                raise response["parsing_error"]                
+
             logger.info(f"Model invoked with success")
 
-            return response
+            return response["parsed"]
+        except LengthFinishReasonError as l:
+            retries += 1
+
+            logger.warning(
+                "Max token generation limit reached. "
+                f"Retrying ({retries}/{_INTERNAL_RETRIES})..."
+            )
+
+            # The model stopped before producing a complete response.
+            partial_content = ""
+
+            if e.completion.choices:
+                partial_content = (
+                    e.completion.choices[0].message.content or ""
+                )
+
+            messages.extend(
+                [
+                    AIMessage(content=partial_content),
+                    HumanMessage(
+                        content=(
+                            "Your previous response was truncated because "
+                            "it exceeded the output token limit. "
+                            "Generate the response again and make it "
+                            "significantly more concise while still "
+                            "satisfying the required output schema."
+                        )
+                    ),
+                ]
+            )
         except ValidationError as e:
             logger.warning("Validation error")
 
-            messages.append(AIMessage(response))
-            messages.append(HumanMessage("The provided response does not satisfy the output schema. Read the error and fix it."))
-            messages.append(HumanMessage(e.json(indent=4)))
+            messages.append(AIMessage(response["raw"]))
+
+            messages.append(
+                HumanMessage(
+                    content=(
+                        "Generate the answer again. "
+                        "Your previous answer did not satisfy the required "
+                        "output schema. Return only a complete answer "
+                        "matching the schema."
+                    )
+                )
+            )
+
+            messages.append(
+                HumanMessage(content=e.json(indent=4))
+            )
 
             retries += 1
 

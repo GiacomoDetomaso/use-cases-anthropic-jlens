@@ -15,6 +15,9 @@ def generator_node(state: DatasetState) -> DatasetState:
     except FailedGenerationException:
         generated_prompt = None
 
+        # TODO failures in generation should be treated with retry policy
+        # meaning that after N retries the node goes to "save", and lowers target_size
+
     return state.model_copy(update={
         "generated_prompt": generated_prompt
     })
