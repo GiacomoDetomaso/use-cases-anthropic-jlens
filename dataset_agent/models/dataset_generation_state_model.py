@@ -31,5 +31,5 @@ class DatasetState(BaseModel):
     should_retry: bool = Field(default=False, description="Set by the Similarity Validator or Quality Checker when the current prompt fails validation and must go through the Repair Agent")
     validation_output: QualityAssessmentModel | None = Field(default=None, description="Overall quality assessment produced by the Quality Checker for the current generated prompt")
 
-    last_checkpoint_index: int = Field(default=None, ge=0, description="The last data point index up until the result has been serialized")
+    last_checkpoint_index: int = Field(default=0, ge=0, description="The last data point index up until the result has been serialized")
     retries: int = Field(default=0, ge=0, description="Number of times the Repair Agent has regenerated/repaired the current record")
