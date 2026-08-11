@@ -15,7 +15,7 @@ def inference_environment():
     mode = settings.workflow.inference.mode
 
     if mode == "vllm":
-        process = start_vllm_server()
+        process = start_vllm_server(settings.workflow.inference.vllm.warmup_step)
         try:
             yield process
         finally:
