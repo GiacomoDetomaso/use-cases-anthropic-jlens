@@ -79,9 +79,9 @@ def generate(
             # The model stopped before producing a complete response.
             partial_content = ""
 
-            if e.completion.choices:
+            if l.completion.choices:
                 partial_content = (
-                    e.completion.choices[0].message.content or ""
+                    l.completion.choices[0].message.content or ""
                 )
 
             messages.extend(
