@@ -1,3 +1,5 @@
+import json
+
 from abc import ABC, abstractmethod
 from pathlib import Path
 from dataclasses import dataclass
@@ -16,26 +18,25 @@ class DatasetWriter(ABC):
         output_path.mkdir(parents=True, exist_ok=True)
        
     def append(self, record: SyntheticRecord) -> None:
-        self.dataset.append(record.__dict__)
+        self.dataset.append(record)
 
     @abstractmethod
     def serialize(self, start: int, stop: int) -> bool:
         pass
 
 class JsonLDatasetWriter(DatasetWriter):
-    def __init__(self, output_path):
+    def __init__(self, output_path: Path, file_name: str = "dataset.jsonl"):
         super().__init__(output_path)
+        self.file_path = output_path / file_name
 
     def serialize(self, start: int, stop: int):
         if stop < start: 
             raise ValueError("Upper bound can't be lower than lower bound")
 
-        dataset_range_lst = list(range(self.dataset))
+        if not 0 <= start <= stop <= len(self.dataset):
+            raise IndexError("Invalid serialization bounds")
 
-        if start in dataset_range_lst and stop in dataset_range_lst:
-            with open(self.output_path, "a", encoding="utf-8") as f:
-                for record in self.dataset[start:stop]:
-                    f.write(record.__dict__)
-                    f.write("\n")
-        else:
-            raise IndexError(f"Lower or upper bounds are not in the dataset range.\nstart={start}\nstop={stop}\nrange=(0, {len(self.dataset)})")        
+        with open(self.file_path, "a", encoding="utf-8") as f:
+            for record in self.dataset[start:stop]:
+                f.write(json.dumps(record.__dict__))
+                f.write("\n")
