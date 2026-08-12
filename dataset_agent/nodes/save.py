@@ -28,7 +28,7 @@ class SaveNode:
         logger.info(f"Data point {generated_count} appended to the dataset")
 
         serializable = False
-        last_generation = state.index_to_generate == state.target_size
+        last_generation = generated_count + 1 == state.target_size
 
         serializable = (
             last_generation
@@ -64,7 +64,7 @@ class SaveNode:
         )
 
 def save_router(state: DatasetState) -> str:
-    if state.index_to_generate == (state.target_size + 1):
+    if state.index_to_generate == state.target_size:
         return "completed"
 
     return "not_completed"

@@ -1,8 +1,8 @@
 """Invokes the generation chat model to produce a new malicious prompt."""
-from openai import LengthFinishReasonError
+from openai import BadRequestError, LengthFinishReasonError
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
+from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage
 from pydantic import BaseModel, ValidationError
 
 from dataset_agent.models.dataset_generation_io_models import (
@@ -22,6 +22,14 @@ class FailedGenerationException(Exception):
         self.retries = retries
 
 
+def _is_context_length_error(error: BadRequestError) -> bool:
+    error_message = str(error).lower()
+    return (
+        "maximum context length" in error_message
+        or "context length" in error_message and "input_tokens" in error_message
+    )
+
+
 def _build_generation_messages(source: InputDatasetModel, target: InputAttackModel) -> list[BaseMessage]:
     prompt_settings = settings.prompts
 
@@ -38,88 +46,134 @@ def _build_generation_messages(source: InputDatasetModel, target: InputAttackMod
     ]
 
 
-def generate(
+def _prepare_generation(
     chat_model: BaseChatModel,
     source: InputDatasetModel,
     target: InputAttackModel,
-    output_schema: type[BaseModel]
-) -> type[BaseModel]:
-    llm = chat_model.with_structured_output(output_schema, include_raw=True)
+    output_schema: type[BaseModel],
+):
+    return (
+        chat_model.with_structured_output(output_schema, include_raw=True),
+        _build_generation_messages(source, target),
+    )
 
-    inference_settings = settings.workflow.inference
 
-    messages = _build_generation_messages(source, target)
+def _parse_generation_response(response) -> BaseModel:
+    if response["parsing_error"]:
+        raise response["parsing_error"]
+
+    logger.info("Model invoked with success")
+    return response["parsed"]
+
+
+def _handle_generation_error(
+    error: Exception,
+    retries: int,
+) -> tuple[int, str | None]:
+    if isinstance(error, LengthFinishReasonError):
+        retries += 1
+        logger.warning(
+            "Max token generation limit reached. "
+            f"Retrying ({retries}/{_INTERNAL_RETRIES})..."
+        )
+        return retries, (
+            "Generation exceeded the output token limit. "
+            "Return a complete schema-valid response with significantly "
+            "more concise fields."
+        )
+
+    if isinstance(error, BadRequestError) and _is_context_length_error(error):
+        logger.warning(
+            "Skipping generation because its prompt and requested output "
+            "exceed the model context window."
+        )
+        raise FailedGenerationException(retries=retries) from error
+
+    if isinstance(error, ValidationError):
+        retries += 1
+        logger.warning("Validation error")
+        return retries, (
+            "Generate the answer again. Return only a complete answer "
+            "matching the required output schema. Validation errors:\n"
+            f"{error.json(indent=2)}"
+        )
+
+    raise error
+
+
+def _build_input_messages(
+    base_messages: list[BaseMessage],
+    retry_instruction: str | None,
+) -> list[BaseMessage]:
+    messages = list(base_messages)
+
+    if retry_instruction is not None:
+        messages.append(HumanMessage(content=retry_instruction))
+
+    return messages
+
+
+def generate_sync(
+    chat_model: BaseChatModel,
+    source: InputDatasetModel,
+    target: InputAttackModel,
+    output_schema: type[BaseModel],
+) -> BaseModel:
+    llm, base_messages = _prepare_generation(
+        chat_model, source, target, output_schema
+    )
 
     retries = 0
+    retry_instruction: str | None = None
 
     while retries < _INTERNAL_RETRIES:
         try:
-            logger.info(f"Invoking Model. Attempt: {retries}")
+            logger.info(f"Invoking Model. Attempt: {retries + 1}")
 
-            # TODO error should use two separate functions
-            if inference_settings.mode == "vllm" and inference_settings.vllm.invoke_mode == "async":
-                response = llm.ainvoke(messages)
-            else:
-                response = llm.invoke(messages)
-
-            if response["parsing_error"]:
-                raise response["parsing_error"]                
-
-            logger.info(f"Model invoked with success")
-
-            return response["parsed"]
-        except LengthFinishReasonError as l:
-            retries += 1
-
-            logger.warning(
-                "Max token generation limit reached. "
-                f"Retrying ({retries}/{_INTERNAL_RETRIES})..."
+            response = llm.invoke(
+                _build_input_messages(base_messages, retry_instruction)
             )
 
-            # The model stopped before producing a complete response.
-            partial_content = ""
+            return _parse_generation_response(response)
+        except Exception as error:
+            retries, retry_instruction = _handle_generation_error(error, retries)
 
-            if l.completion.choices:
-                partial_content = (
-                    l.completion.choices[0].message.content or ""
-                )
+    logger.error(
+        f"Could not complete inference: {retries} / {_INTERNAL_RETRIES}. "
+        "Raising exception"
+    )
 
-            messages.extend(
-                [
-                    AIMessage(content=partial_content),
-                    HumanMessage(
-                        content=(
-                            "Your previous response was truncated because "
-                            "it exceeded the output token limit. "
-                            "Generate the response again and make it "
-                            "significantly more concise while still "
-                            "satisfying the required output schema."
-                        )
-                    ),
-                ]
+    raise FailedGenerationException(retries=retries)
+
+
+async def generate_async(
+    chat_model: BaseChatModel,
+    source: InputDatasetModel,
+    target: InputAttackModel,
+    output_schema: type[BaseModel],
+) -> BaseModel:
+    llm, base_messages = _prepare_generation(
+        chat_model, source, target, output_schema
+    )
+
+    retries = 0
+    retry_instruction: str | None = None
+
+    while retries < _INTERNAL_RETRIES:
+        try:
+            logger.info(f"Invoking Model asynchronously. Attempt: {retries + 1}")
+
+            response = await llm.ainvoke(
+                _build_input_messages(base_messages, retry_instruction)
             )
-        except ValidationError as e:
-            logger.warning("Validation error")
+            
+            return _parse_generation_response(response)
+        except Exception as error:
+            retries, retry_instruction = _handle_generation_error(error, retries)
 
-            messages.append(AIMessage(response["raw"]))
-
-            messages.append(
-                HumanMessage(
-                    content=(
-                        "Generate the answer again. "
-                        "Your previous answer did not satisfy the required "
-                        "output schema. Return only a complete answer "
-                        "matching the schema."
-                    )
-                )
-            )
-
-            messages.append(
-                HumanMessage(content=e.json(indent=4))
-            )
-
-            retries += 1
-
-    logger.error(f"Could not complete inference: {retries} / {_INTERNAL_RETRIES}. Raising exception")
+    logger.error(
+        f"Could not complete inference: {retries} / {_INTERNAL_RETRIES}. "
+        "Raising exception"
+    )
 
     raise FailedGenerationException(retries=retries)

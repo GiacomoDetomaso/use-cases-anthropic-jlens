@@ -6,7 +6,11 @@ from dataset_agent.dataset_source import (
 )
 from dataset_agent.models.dataset_generation_state_model import DatasetState
 from dataset_agent.nodes.pickers import PickerInputDatasetNode, PickerTargetDatasetNode
-from dataset_agent.nodes.generator import generator_node as generator, generation_router
+from dataset_agent.nodes.generator import (
+    generation_router,
+    generator_node_sync,
+    generator_node_async,
+)
 from dataset_agent.nodes.save import SaveNode, save_router
 from dataset_agent.core.writers import JsonLDatasetWriter
 from settings import settings
@@ -51,6 +55,12 @@ def build_and_compile_graph():
 
     builder.add_node("pick_input", to_graph_node(input_picker))
     builder.add_node("pick_target", to_graph_node(target_picker))
+    vllm_settings = settings.workflow.inference.vllm
+    generator = (
+        generator_node_async
+        if vllm_settings is not None and vllm_settings.invoke_mode == "async"
+        else generator_node_sync
+    )
     builder.add_node("generator", generator)
     builder.add_node("save", save)
 
@@ -64,6 +74,7 @@ def build_and_compile_graph():
         {
             "success": "save",      # later validator
             "retry": "pick_input",
+            "completed": END,
         },
     )
 
