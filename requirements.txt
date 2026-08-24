@@ -1,7 +1,11 @@
-langchain
-langchain-openai
-pydantic
+langchain==1.3.14
+langchain-core==1.5.4
+langchain-openai==1.4.3
+langgraph==1.2.9
+openai==2.54.0
+pydantic==2.13.4
 pandas
 PyYAML
 loguru
+requests
 grandalf
