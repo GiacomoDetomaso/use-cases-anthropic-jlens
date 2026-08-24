@@ -9,3 +9,4 @@ PyYAML
 loguru
 requests
 grandalf
+vllm
