@@ -6,17 +6,3 @@ generation:
     api_key: dummy
     temperature: 0.7
     max_tokens: 1024
-
-validation:
-  provider: openai
-  model_name: Qwen/Qwen2.5-7B-Instruct
-  generation_params:
-    base_url: http://localhost:8000/v1
-    api_key: dummy
-    temperature: 0.7
-    max_tokens: 512
-
-embedding:
-  provider: "openai"
-  model_name: "text-embedding-3-small"
-  generation_params: {}

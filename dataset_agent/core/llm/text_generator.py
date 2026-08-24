@@ -113,15 +113,12 @@ def _build_input_messages(
     return messages
 
 
-def generate_sync(
+def generate_messages_sync(
     chat_model: BaseChatModel,
-    source: InputDatasetModel,
-    target: InputAttackModel,
+    base_messages: list[BaseMessage],
     output_schema: type[BaseModel],
 ) -> BaseModel:
-    llm, base_messages = _prepare_generation(
-        chat_model, source, target, output_schema
-    )
+    llm = chat_model.with_structured_output(output_schema, include_raw=True)
 
     retries = 0
     retry_instruction: str | None = None
@@ -146,15 +143,12 @@ def generate_sync(
     raise FailedGenerationException(retries=retries)
 
 
-async def generate_async(
+async def generate_messages_async(
     chat_model: BaseChatModel,
-    source: InputDatasetModel,
-    target: InputAttackModel,
+    base_messages: list[BaseMessage],
     output_schema: type[BaseModel],
 ) -> BaseModel:
-    llm, base_messages = _prepare_generation(
-        chat_model, source, target, output_schema
-    )
+    llm = chat_model.with_structured_output(output_schema, include_raw=True)
 
     retries = 0
     retry_instruction: str | None = None
@@ -177,3 +171,29 @@ async def generate_async(
     )
 
     raise FailedGenerationException(retries=retries)
+
+
+def generate_sync(
+    chat_model: BaseChatModel,
+    source: InputDatasetModel,
+    target: InputAttackModel,
+    output_schema: type[BaseModel],
+) -> BaseModel:
+    return generate_messages_sync(
+        chat_model=chat_model,
+        base_messages=_build_generation_messages(source, target),
+        output_schema=output_schema,
+    )
+
+
+async def generate_async(
+    chat_model: BaseChatModel,
+    source: InputDatasetModel,
+    target: InputAttackModel,
+    output_schema: type[BaseModel],
+) -> BaseModel:
+    return await generate_messages_async(
+        chat_model=chat_model,
+        base_messages=_build_generation_messages(source, target),
+        output_schema=output_schema,
+    )

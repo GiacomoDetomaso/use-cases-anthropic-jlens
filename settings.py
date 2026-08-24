@@ -9,6 +9,8 @@ CONFIG_DIR = Path(__file__).resolve().parent / "config"
 CONFIG_PATH = CONFIG_DIR / "dataset.yml"
 AI_MODELS_CONFIG_PATH = CONFIG_DIR / "ai_models.yml"
 PROMPTS_CONFIG_PATH = CONFIG_DIR / "dataset_generator_prompt.yml"
+VALIDATOR_PROMPTS_CONFIG_PATH = CONFIG_DIR / "prompt_validator.yml"
+REPAIR_PROMPTS_CONFIG_PATH = CONFIG_DIR / "prompt_repair.yml"
 WORKFLOW_CONFIG_PATH = CONFIG_DIR / "workflow.yml"
 
 ClassDistribution = Literal["balanced", "random"] | dict[str, float]
@@ -62,8 +64,6 @@ class AIModelSettings(BaseModel):
 
 class AIModelsSettings(BaseModel):
     generation: AIModelSettings
-    validation: AIModelSettings
-    embedding: AIModelSettings
 
 
 class PromptTemplateSettings(BaseModel):
@@ -146,6 +146,7 @@ class WorkflowInferenceSettings(BaseModel):
 
 class WorkflowSettings(BaseModel):
     generation_schema_fix_retries: int = Field(default=0, gt=0, lt=5)
+    max_repair_attempts: int = Field(default=0, ge=0, lt=5)
     workers: int = Field(default=1, ge=1)
     save_checks: int = Field(default=1, ge=1)
     inference: WorkflowInferenceSettings
@@ -157,6 +158,8 @@ class Settings(BaseModel):
     output_dataset: OutputDatasetSettings
     ai_models: AIModelsSettings
     prompts: PromptTemplateSettings
+    validator_prompts: PromptTemplateSettings
+    repair_prompts: PromptTemplateSettings
     workflow: WorkflowSettings
 
     @model_validator(mode="after")
@@ -176,12 +179,16 @@ def _load_config() -> Settings:
     dataset_config = _read_yaml(CONFIG_PATH)
     ai_models_config = _read_yaml(AI_MODELS_CONFIG_PATH)
     prompts_config = _read_yaml(PROMPTS_CONFIG_PATH)
+    validator_prompts_config = _read_yaml(VALIDATOR_PROMPTS_CONFIG_PATH)
+    repair_prompts_config = _read_yaml(REPAIR_PROMPTS_CONFIG_PATH)
     workflow_config = _read_yaml(WORKFLOW_CONFIG_PATH)
 
     return Settings(
         **dataset_config,
         ai_models=ai_models_config,
         prompts=prompts_config,
+        validator_prompts=validator_prompts_config,
+        repair_prompts=repair_prompts_config,
         workflow=workflow_config
     )
 

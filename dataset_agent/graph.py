@@ -11,6 +11,13 @@ from dataset_agent.nodes.generator import (
     generator_node_sync,
     generator_node_async,
 )
+from dataset_agent.nodes.validator import (
+    validation_router,
+    validator_node_async,
+    validator_node_sync,
+)
+from dataset_agent.nodes.repair import repair_node_async, repair_node_sync
+from dataset_agent.nodes.discard import discard_node
 from dataset_agent.nodes.save import SaveNode, save_router
 from dataset_agent.core.writers import JsonLDatasetWriter
 from settings import settings
@@ -61,7 +68,20 @@ def build_and_compile_graph():
         if vllm_settings is not None and vllm_settings.invoke_mode == "async"
         else generator_node_sync
     )
+    validator = (
+        validator_node_async
+        if vllm_settings is not None and vllm_settings.invoke_mode == "async"
+        else validator_node_sync
+    )
+    repair = (
+        repair_node_async
+        if vllm_settings is not None and vllm_settings.invoke_mode == "async"
+        else repair_node_sync
+    )
     builder.add_node("generator", generator)
+    builder.add_node("validator", validator)
+    builder.add_node("repair", repair)
+    builder.add_node("discard", discard_node)
     builder.add_node("save", save)
 
     builder.add_edge(START, "pick_input")
@@ -72,9 +92,30 @@ def build_and_compile_graph():
         "generator",
         generation_router,
         {
-            "success": "save",      # later validator
+            "success": "validator",
             "retry": "pick_input",
             "completed": END,
+        },
+    )
+
+    builder.add_conditional_edges(
+        "validator",
+        validation_router,
+        {
+            "accepted": "save",
+            "repair": "repair",
+            "discard": "discard",
+        },
+    )
+
+    builder.add_edge("repair", "validator")
+
+    builder.add_conditional_edges(
+        "discard",
+        save_router,
+        {
+            "completed": END,
+            "not_completed": "pick_input",
         },
     )
 

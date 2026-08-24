@@ -1,4 +1,5 @@
 generation_schema_fix_retries: 2
+max_repair_attempts: 2
 workers: 1
 save_checks: 50 
 
