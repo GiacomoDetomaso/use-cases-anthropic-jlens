@@ -148,6 +148,7 @@ class WorkflowSettings(BaseModel):
     generation_schema_fix_retries: int = Field(default=0, gt=0, lt=5)
     max_repair_attempts: int = Field(default=0, ge=0, lt=5)
     workers: int = Field(default=1, ge=1)
+    worker_class_groups: list[list[str]] | None = None
     save_checks: int = Field(default=1, ge=1)
     inference: WorkflowInferenceSettings
 
@@ -166,6 +167,48 @@ class Settings(BaseModel):
     def validate(self):
         if self.workflow.save_checks > self.output_dataset.target_size:
             raise ValueError(f"`save_checks` can't be higher than the actual dataset_size")
+
+        workflow = self.workflow
+        if workflow.workers == 1:
+            if workflow.worker_class_groups is not None:
+                raise ValueError(
+                    "`worker_class_groups` is only supported when `workers` is greater than 1"
+                )
+            return self
+
+        if isinstance(self.source_dataset.class_distribution, dict):
+            raise ValueError(
+                "multi-worker generation requires source_dataset.class_distribution "
+                "to be `balanced` or `random`"
+            )
+
+        if workflow.inference.mode != "vllm" or workflow.inference.vllm is None:
+            raise ValueError("multi-worker generation requires a configured vLLM inference server")
+
+        groups = workflow.worker_class_groups
+        if groups is None:
+            raise ValueError("multi-worker generation requires `worker_class_groups`")
+
+        if len(groups) != workflow.workers:
+            raise ValueError("`worker_class_groups` must contain exactly one group per worker")
+
+        if any(not group for group in groups):
+            raise ValueError("every worker class group must contain at least one source class")
+
+        assigned_labels = [label for group in groups for label in group]
+        if len(assigned_labels) != len(set(assigned_labels)):
+            raise ValueError("source classes cannot be assigned to more than one worker")
+
+        configured_labels = set(self.source_dataset.class_labels)
+        assigned_labels_set = set(assigned_labels)
+        if assigned_labels_set != configured_labels:
+            missing_labels = configured_labels.difference(assigned_labels_set)
+            unknown_labels = assigned_labels_set.difference(configured_labels)
+            raise ValueError(
+                "worker class groups must assign every source class exactly once. "
+                f"Missing labels: {sorted(missing_labels)}. "
+                f"Unknown labels: {sorted(unknown_labels)}."
+            )
 
         return self
 

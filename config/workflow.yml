@@ -1,6 +1,9 @@
 generation_schema_fix_retries: 2
 max_repair_attempts: 2
 workers: 1
+# Required when workers is greater than 1. Each source class must appear in
+# exactly one group, for example: [["cancel_order", "change_order"], ["change_shipping_address"]]
+worker_class_groups: null
 save_checks: 50 
 
 inference:

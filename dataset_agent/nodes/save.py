@@ -44,7 +44,7 @@ class SaveNode:
 
             self.writer.serialize(
                 start=start, 
-                stop=generated_count
+                stop=generated_count + 1
             )
 
             logger.info(f"Data points from {generated_count - save_checks} up to {generated_count} serialized")

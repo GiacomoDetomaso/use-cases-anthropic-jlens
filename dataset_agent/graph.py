@@ -1,10 +1,12 @@
+from pathlib import Path
+
 from langgraph.graph import StateGraph, START, END
 
 from dataset_agent.dataset_source import (
     get_source_dataset,
     get_target_transformation_examples_dataset,
 )
-from dataset_agent.models.dataset_generation_state_model import DatasetState
+from dataset_agent.models.dataset_generation_state_model import DatasetState, DistributionState
 from dataset_agent.nodes.pickers import PickerInputDatasetNode, PickerTargetDatasetNode
 from dataset_agent.nodes.generator import (
     generation_router,
@@ -22,29 +24,42 @@ from dataset_agent.nodes.save import SaveNode, save_router
 from dataset_agent.core.writers import JsonLDatasetWriter
 from settings import settings
 
-from pathlib import Path
-
 source_dataset = get_source_dataset()
 target_dataset = get_target_transformation_examples_dataset()
 
-def build_and_compile_graph():
+def _use_async_nodes() -> bool:
+    vllm_settings = settings.workflow.inference.vllm
+    return settings.workflow.workers > 1 or (
+        vllm_settings is not None and vllm_settings.invoke_mode == "async"
+    )
+
+
+def build_and_compile_graph(
+    target_size: int | None = None,
+    output_path: Path | None = None,
+    output_file_name: str = "dataset.jsonl",
+    seed: int = 42,
+):
+    target_size = target_size or settings.output_dataset.target_size
+    output_path = output_path or Path(__file__).resolve().parent.parent / "output"
     input_picker = PickerInputDatasetNode(
         dataset=source_dataset,
         dataset_settings=settings.source_dataset,
-        seed=42,
+        seed=seed,
     )
 
     target_picker = PickerTargetDatasetNode(
         dataset=target_dataset,
         dataset_settings=settings.target_transformation_examples_dataset,
-        target_size=settings.output_dataset.target_size,
+        target_size=target_size,
         examples_count=3,
-        seed=42,
+        seed=seed,
     )
 
     save = SaveNode(
         writer=JsonLDatasetWriter(
-            output_path=Path(Path(__file__).resolve().parent.parent / "output")
+            output_path=output_path,
+            file_name=output_file_name,
         )
     )
 
@@ -62,20 +77,19 @@ def build_and_compile_graph():
 
     builder.add_node("pick_input", to_graph_node(input_picker))
     builder.add_node("pick_target", to_graph_node(target_picker))
-    vllm_settings = settings.workflow.inference.vllm
     generator = (
         generator_node_async
-        if vllm_settings is not None and vllm_settings.invoke_mode == "async"
+        if _use_async_nodes()
         else generator_node_sync
     )
     validator = (
         validator_node_async
-        if vllm_settings is not None and vllm_settings.invoke_mode == "async"
+        if _use_async_nodes()
         else validator_node_sync
     )
     repair = (
         repair_node_async
-        if vllm_settings is not None and vllm_settings.invoke_mode == "async"
+        if _use_async_nodes()
         else repair_node_sync
     )
     builder.add_node("generator", generator)
@@ -130,9 +144,18 @@ def build_and_compile_graph():
 
     return builder.compile()
 
-def get_graph_initial_state():
+def get_graph_initial_state(
+    target_size: int | None = None,
+    remaining_input_indices: list[int] | None = None,
+    input_distribution: DistributionState | None = None,
+):
     return DatasetState(
-        target_size=settings.output_dataset.target_size,
+        target_size=target_size or settings.output_dataset.target_size,
         index_to_generate=0,
-        remaining_input_indices=source_dataset.index.tolist(),
+        remaining_input_indices=(
+            remaining_input_indices
+            if remaining_input_indices is not None
+            else source_dataset.index.tolist()
+        ),
+        input_distribution=input_distribution or {},
     )
