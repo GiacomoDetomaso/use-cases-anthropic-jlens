@@ -11,11 +11,11 @@ class SaveNode:
 
     def __call__(self, state: DatasetState) -> DatasetState:
         record = SyntheticRecord(
-            source=state.source,
-            target=state.target,
+            source=state.source.model_dump(),
+            target=state.target.model_dump(),
             output=(
-                state.regenerated_prompt
-                or state.generated_prompt
+                state.regenerated_prompt.text
+                or state.generated_prompt.text
             ),
         )
 
