@@ -9,6 +9,10 @@ from settings import DatasetSettings, settings
 from loguru import logger
 
 
+input_picker_logger = logger.bind(node="pick-input")
+target_picker_logger = logger.bind(node="pick-target")
+
+
 class PickerInputDatasetNode:
     def __init__(self, dataset: pd.DataFrame, dataset_settings: DatasetSettings, seed: int | None = None):
         self.dataset_settings = dataset_settings
@@ -40,7 +44,12 @@ class PickerInputDatasetNode:
         class_name = self.balancer.pick_class(input_distribution)
         selected_index, row = self.sampler.sample_one(class_name, state.remaining_input_indices)
 
-        logger.info(f"Picked index {selected_index} for class {class_name}")        
+        input_picker_logger.info(
+            "Selected source index {} for record {}: class={!r}",
+            selected_index,
+            state.index_to_generate + 1,
+            class_name,
+        )
 
         return state.model_copy(update={
             "source": InputDatasetModel(
@@ -73,7 +82,12 @@ class PickerTargetDatasetNode:
             for index, row in enumerate(examples)
         )
 
-        logger.info(f"Picked target examples for class {class_name}")
+        target_picker_logger.info(
+            "Selected {} target examples for record {}: class={!r}",
+            len(examples),
+            state.index_to_generate + 1,
+            class_name,
+        )
 
         return state.model_copy(update={
             "target": InputAttackModel(

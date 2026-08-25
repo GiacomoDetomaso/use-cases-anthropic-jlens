@@ -2,6 +2,9 @@ from dataset_agent.models.dataset_generation_state_model import DatasetState, Di
 from loguru import logger
 
 
+node_logger = logger.bind(node="discard")
+
+
 def _rollback(distribution: DistributionState, class_name: str | None) -> DistributionState:
     if class_name is None or class_name not in distribution:
         return distribution
@@ -22,9 +25,10 @@ def discard_node(state: DatasetState) -> DatasetState:
     target_class = state.target.target_intent if state.target else None
     feedback = state.validation_output.feedback if state.validation_output else None
 
-    logger.warning(
-        "Discarded candidate for record {} after {} repair attempts: source={}, target={}, feedback={!r}",
-        state.index_to_generate,
+    node_logger.warning(
+        "Record {}/{} discarded after {} repair attempts: source={!r}, target={!r}, feedback={!r}",
+        state.index_to_generate + 1,
+        state.target_size,
         state.retries,
         source_class,
         target_class,

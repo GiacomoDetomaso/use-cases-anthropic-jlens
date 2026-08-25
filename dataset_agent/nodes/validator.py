@@ -14,6 +14,9 @@ from settings import settings
 from loguru import logger
 
 
+node_logger = logger.bind(node="validate")
+
+
 def _rejected_assessment(reason: str) -> QualityAssessmentModel:
     return QualityAssessmentModel(
         intent_context_preservation=QualityLevel.VERY_LOW,
@@ -59,12 +62,13 @@ async def validator_node_async(state: DatasetState) -> DatasetState:
 
 
 def _log_assessment(state: DatasetState, assessment: QualityAssessmentModel) -> None:
-    log = logger.info if assessment.accepted else logger.warning
+    log = node_logger.success if assessment.accepted else node_logger.warning
     log(
-        "Validation {} for record {}: overall={}, intent={}, attack={}, originality={}, "
+        "Record {}/{} {}: overall={}, intent={}, attack={}, originality={}, "
         "naturalness={}, feedback={!r}",
+        state.index_to_generate + 1,
+        state.target_size,
         "accepted" if assessment.accepted else "rejected",
-        state.index_to_generate,
         assessment.overall_level.value,
         assessment.intent_context_preservation.value,
         assessment.attack_class_alignment.value,
@@ -77,16 +81,18 @@ def validation_router(state: DatasetState) -> str:
     if state.validation_output and state.validation_output.accepted:
         return "accepted"
     if state.retries < settings.workflow.max_repair_attempts:
-        logger.info(
-            "Scheduling repair {} of {} for record {}",
+        node_logger.info(
+            "Scheduling repair {}/{} for record {}/{}",
             state.retries + 1,
             settings.workflow.max_repair_attempts,
-            state.index_to_generate,
+            state.index_to_generate + 1,
+            state.target_size,
         )
         return "repair"
-    logger.warning(
-        "Discarding record {} after {} repair attempts",
-        state.index_to_generate,
+    node_logger.warning(
+        "Discarding record {}/{} after {} repair attempts",
+        state.index_to_generate + 1,
+        state.target_size,
         state.retries,
     )
     return "discard"

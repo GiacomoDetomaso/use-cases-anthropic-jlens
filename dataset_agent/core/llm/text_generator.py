@@ -15,6 +15,7 @@ from settings import settings
 from loguru import logger
 
 _INTERNAL_RETRIES = settings.workflow.generation_schema_fix_retries
+node_logger = logger.bind(node="model")
 
 class FailedGenerationException(Exception):
     def __init__(self, *args, retries: int=_INTERNAL_RETRIES):
@@ -62,7 +63,7 @@ def _parse_generation_response(response) -> BaseModel:
     if response["parsing_error"]:
         raise response["parsing_error"]
 
-    logger.info("Model invoked with success")
+    node_logger.debug("Structured model response parsed")
     return response["parsed"]
 
 
@@ -72,9 +73,10 @@ def _handle_generation_error(
 ) -> tuple[int, str | None]:
     if isinstance(error, LengthFinishReasonError):
         retries += 1
-        logger.warning(
-            "Max token generation limit reached. "
-            f"Retrying ({retries}/{_INTERNAL_RETRIES})..."
+        node_logger.warning(
+            "Output token limit reached; retrying model invocation ({}/{})",
+            retries,
+            _INTERNAL_RETRIES,
         )
         return retries, (
             "Generation exceeded the output token limit. "
@@ -83,15 +85,18 @@ def _handle_generation_error(
         )
 
     if isinstance(error, BadRequestError) and _is_context_length_error(error):
-        logger.warning(
-            "Skipping generation because its prompt and requested output "
-            "exceed the model context window."
+        node_logger.warning(
+            "Input and requested output exceed the model context window; ending invocation"
         )
         raise FailedGenerationException(retries=retries) from error
 
     if isinstance(error, ValidationError):
         retries += 1
-        logger.warning("Validation error")
+        node_logger.warning(
+            "Structured response failed validation; retrying model invocation ({}/{})",
+            retries,
+            _INTERNAL_RETRIES,
+        )
         return retries, (
             "Generate the answer again. Return only a complete answer "
             "matching the required output schema. Validation errors:\n"
@@ -125,7 +130,11 @@ def generate_messages_sync(
 
     while retries < _INTERNAL_RETRIES:
         try:
-            logger.info(f"Invoking Model. Attempt: {retries + 1}")
+            node_logger.debug(
+                "Invoking structured model (attempt {}/{})",
+                retries + 1,
+                _INTERNAL_RETRIES,
+            )
 
             response = llm.invoke(
                 _build_input_messages(base_messages, retry_instruction)
@@ -135,9 +144,10 @@ def generate_messages_sync(
         except Exception as error:
             retries, retry_instruction = _handle_generation_error(error, retries)
 
-    logger.error(
-        f"Could not complete inference: {retries} / {_INTERNAL_RETRIES}. "
-        "Raising exception"
+    node_logger.error(
+        "Model invocation failed after {}/{} attempts",
+        retries,
+        _INTERNAL_RETRIES,
     )
 
     raise FailedGenerationException(retries=retries)
@@ -155,7 +165,11 @@ async def generate_messages_async(
 
     while retries < _INTERNAL_RETRIES:
         try:
-            logger.info(f"Invoking Model asynchronously. Attempt: {retries + 1}")
+            node_logger.debug(
+                "Invoking structured model asynchronously (attempt {}/{})",
+                retries + 1,
+                _INTERNAL_RETRIES,
+            )
 
             response = await llm.ainvoke(
                 _build_input_messages(base_messages, retry_instruction)
@@ -165,9 +179,10 @@ async def generate_messages_async(
         except Exception as error:
             retries, retry_instruction = _handle_generation_error(error, retries)
 
-    logger.error(
-        f"Could not complete inference: {retries} / {_INTERNAL_RETRIES}. "
-        "Raising exception"
+    node_logger.error(
+        "Asynchronous model invocation failed after {}/{} attempts",
+        retries,
+        _INTERNAL_RETRIES,
     )
 
     raise FailedGenerationException(retries=retries)

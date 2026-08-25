@@ -1,27 +1,38 @@
-from loguru import logger
+from pathlib import Path
 import sys
 
-def setup_logger():
-    # Remove default handler
-    logger.remove()
+from loguru import logger
 
-    # Add custom console sink
+
+_CONSOLE_FORMAT = (
+    "<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | "
+    "<cyan>{extra[node]: <10}</cyan> | <level>{message}</level>\n{exception}"
+)
+_FILE_FORMAT = (
+    "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[node]: <10} | "
+    "{message}\n{exception}"
+)
+
+
+def setup_logger() -> None:
+    log_directory = Path("logs")
+    log_directory.mkdir(exist_ok=True)
+
+    logger.remove()
+    logger.configure(extra={"node": "app"})
+
     logger.add(
         sys.stdout,
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level:8} | {name}:{function}:{line} - {message}",
-        level="INFO"
-    )
-
-    logger.add(
-        "logs/app_{time:YYYY-MM-DD}.log",
-        rotation="10 MB",     # Create new file when size hits 10 MB (or use "00:00" for daily)
-        retention="14 days",  # Automatically delete log files older than 14 days
-        compression="zip",    # Compress archived log files
-        level="DEBUG"
-    )
-
-    logger.add(
-        "logs/async_app.log",
+        format=_CONSOLE_FORMAT,
         level="INFO",
-        enqueue=True  # Makes logging non-blocking and safe across async tasks
+        colorize=True,
+    )
+    logger.add(
+        log_directory / "app_{time:YYYY-MM-DD}.log",
+        format=_FILE_FORMAT,
+        rotation="10 MB",
+        retention="14 days",
+        compression="zip",
+        level="DEBUG",
+        enqueue=True,
     )

@@ -1,11 +1,13 @@
-from sympy import asec
-
 from dataset_agent.core.writers import DatasetWriter, SyntheticRecord
 from dataset_agent.models.dataset_generation_state_model import DatasetState
 
 from settings import settings
 
 from loguru import logger
+
+
+node_logger = logger.bind(node="save")
+
 
 class SaveNode:
     def __init__(self, writer: DatasetWriter):
@@ -32,9 +34,10 @@ class SaveNode:
 
         self.writer.append(record)
 
-        logger.info(
-            "Saved record {} using {} output",
-            generated_count,
+        node_logger.success(
+            "Saved record {}/{} using {} output",
+            generated_count + 1,
+            state.target_size,
             "repaired" if state.regenerated_prompt is not None else "generated",
         )
 
@@ -58,10 +61,10 @@ class SaveNode:
                 stop=generated_count + 1
             )
 
-            logger.info(
-                "Serialized records {} through {}",
-                start,
-                generated_count,
+            node_logger.info(
+                "Checkpoint written for records {} through {}",
+                start + 1,
+                generated_count + 1,
             )
 
         return state.model_copy(

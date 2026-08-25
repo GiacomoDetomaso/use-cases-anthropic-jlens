@@ -14,6 +14,9 @@ from dataset_agent.core.llm.text_generator import (
 from loguru import logger
 
 
+node_logger = logger.bind(node="generate")
+
+
 def _rollback_class_selection(
     distribution: DistributionState,
     class_name: str | None,
@@ -25,9 +28,10 @@ def _rollback_class_selection(
     bucket = distribution[class_name]
 
     if bucket.actual == 0:
-        logger.warning(
-            f"Cannot roll back {distribution_name} class '{class_name}': "
-            "actual count is already zero."
+        node_logger.warning(
+            "Cannot release {} class {!r}: its allocation is already zero",
+            distribution_name,
+            class_name,
         )
         return distribution
 
@@ -55,6 +59,13 @@ def _failed_generation_update(state: DatasetState) -> dict:
 
 
 def generator_node_sync(state: DatasetState) -> DatasetState:
+    node_logger.info(
+        "Generating record {}/{}: source={!r}, target={!r}",
+        state.index_to_generate + 1,
+        state.target_size,
+        state.source.original_intent if state.source else None,
+        state.target.target_intent if state.target else None,
+    )
     try:
         generated_prompt = generate_sync(
             chat_model=get_chat_model(),
@@ -63,12 +74,29 @@ def generator_node_sync(state: DatasetState) -> DatasetState:
             output_schema=OutputModel
         )
     except FailedGenerationException:
+        node_logger.warning(
+            "Generation failed for record {}/{}; releasing selected classes",
+            state.index_to_generate + 1,
+            state.target_size,
+        )
         return state.model_copy(update=_failed_generation_update(state))
 
+    node_logger.success(
+        "Generated candidate for record {}/{}",
+        state.index_to_generate + 1,
+        state.target_size,
+    )
     return state.model_copy(update={"generated_prompt": generated_prompt})
 
 
 async def generator_node_async(state: DatasetState) -> DatasetState:
+    node_logger.info(
+        "Generating record {}/{}: source={!r}, target={!r}",
+        state.index_to_generate + 1,
+        state.target_size,
+        state.source.original_intent if state.source else None,
+        state.target.target_intent if state.target else None,
+    )
     try:
         generated_prompt = await generate_async(
             chat_model=get_chat_model(),
@@ -77,8 +105,18 @@ async def generator_node_async(state: DatasetState) -> DatasetState:
             output_schema=OutputModel,
         )
     except FailedGenerationException:
+        node_logger.warning(
+            "Generation failed for record {}/{}; releasing selected classes",
+            state.index_to_generate + 1,
+            state.target_size,
+        )
         return state.model_copy(update=_failed_generation_update(state))
 
+    node_logger.success(
+        "Generated candidate for record {}/{}",
+        state.index_to_generate + 1,
+        state.target_size,
+    )
     return state.model_copy(update={"generated_prompt": generated_prompt})
 
 def generation_router(state: DatasetState) -> str:

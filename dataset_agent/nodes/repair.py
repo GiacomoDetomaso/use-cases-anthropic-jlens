@@ -11,6 +11,9 @@ from settings import settings
 from loguru import logger
 
 
+node_logger = logger.bind(node="repair")
+
+
 def _feedback(state: DatasetState) -> str:
     if state.validation_output is None:
         return "Improve overall quality."
@@ -19,7 +22,13 @@ def _feedback(state: DatasetState) -> str:
 
 def repair_node_sync(state: DatasetState) -> DatasetState:
     attempt = state.retries + 1
-    logger.info("Starting repair {} for record {}", attempt, state.index_to_generate)
+    node_logger.info(
+        "Repair {}/{} started for record {}/{}",
+        attempt,
+        settings.workflow.max_repair_attempts,
+        state.index_to_generate + 1,
+        state.target_size,
+    )
     try:
         repaired_prompt = generate_messages_sync(
             chat_model=get_chat_model(),
@@ -32,14 +41,22 @@ def repair_node_sync(state: DatasetState) -> DatasetState:
         )
     except (FailedGenerationException, ValueError) as error:
         repaired_prompt = None
-        logger.warning(
-            "Repair {} failed for record {}: {}",
+        node_logger.warning(
+            "Repair {}/{} failed for record {}/{}: {}",
             attempt,
-            state.index_to_generate,
+            settings.workflow.max_repair_attempts,
+            state.index_to_generate + 1,
+            state.target_size,
             error,
         )
     else:
-        logger.info("Repair {} completed for record {}", attempt, state.index_to_generate)
+        node_logger.success(
+            "Repair {}/{} completed for record {}/{}",
+            attempt,
+            settings.workflow.max_repair_attempts,
+            state.index_to_generate + 1,
+            state.target_size,
+        )
 
     return state.model_copy(update={
         "regenerated_prompt": repaired_prompt,
@@ -50,7 +67,13 @@ def repair_node_sync(state: DatasetState) -> DatasetState:
 
 async def repair_node_async(state: DatasetState) -> DatasetState:
     attempt = state.retries + 1
-    logger.info("Starting repair {} for record {}", attempt, state.index_to_generate)
+    node_logger.info(
+        "Repair {}/{} started for record {}/{}",
+        attempt,
+        settings.workflow.max_repair_attempts,
+        state.index_to_generate + 1,
+        state.target_size,
+    )
     try:
         repaired_prompt = await generate_messages_async(
             chat_model=get_chat_model(),
@@ -63,14 +86,22 @@ async def repair_node_async(state: DatasetState) -> DatasetState:
         )
     except (FailedGenerationException, ValueError) as error:
         repaired_prompt = None
-        logger.warning(
-            "Repair {} failed for record {}: {}",
+        node_logger.warning(
+            "Repair {}/{} failed for record {}/{}: {}",
             attempt,
-            state.index_to_generate,
+            settings.workflow.max_repair_attempts,
+            state.index_to_generate + 1,
+            state.target_size,
             error,
         )
     else:
-        logger.info("Repair {} completed for record {}", attempt, state.index_to_generate)
+        node_logger.success(
+            "Repair {}/{} completed for record {}/{}",
+            attempt,
+            settings.workflow.max_repair_attempts,
+            state.index_to_generate + 1,
+            state.target_size,
+        )
 
     return state.model_copy(update={
         "regenerated_prompt": repaired_prompt,
