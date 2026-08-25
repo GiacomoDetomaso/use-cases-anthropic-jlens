@@ -6,7 +6,6 @@ from dataset_agent.core.llm.text_generator import (
 )
 from dataset_agent.models.dataset_generation_io_models import (
     QualityAssessmentModel,
-    QualityLevel,
 )
 from dataset_agent.models.dataset_generation_state_model import DatasetState
 from dataset_agent.nodes._prompt_messages import build_messages
@@ -19,10 +18,8 @@ node_logger = logger.bind(node="validate")
 
 def _rejected_assessment(reason: str) -> QualityAssessmentModel:
     return QualityAssessmentModel(
-        intent_context_preservation=QualityLevel.VERY_LOW,
-        attack_class_alignment=QualityLevel.VERY_LOW,
-        originality=QualityLevel.VERY_LOW,
-        naturalness_and_coherence=QualityLevel.VERY_LOW,
+        original_intent_preserved=False,
+        attack_present_and_matches_example_pattern=False,
         feedback=reason,
     )
 
@@ -64,16 +61,13 @@ async def validator_node_async(state: DatasetState) -> DatasetState:
 def _log_assessment(state: DatasetState, assessment: QualityAssessmentModel) -> None:
     log = node_logger.success if assessment.accepted else node_logger.warning
     log(
-        "Record {}/{} {}: overall={}, intent={}, attack={}, originality={}, "
-        "naturalness={}, feedback={!r}",
+        "Record {}/{} {}: intent_preserved={}, attack_matches_pattern={}, "
+        "feedback={!r}",
         state.index_to_generate + 1,
         state.target_size,
         "accepted" if assessment.accepted else "rejected",
-        assessment.overall_level.value,
-        assessment.intent_context_preservation.value,
-        assessment.attack_class_alignment.value,
-        assessment.originality.value,
-        assessment.naturalness_and_coherence.value,
+        assessment.original_intent_preserved,
+        assessment.attack_present_and_matches_example_pattern,
         assessment.feedback,
     )
 

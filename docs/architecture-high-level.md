@@ -73,16 +73,14 @@ Both nodes use `DistributionBalancer`. It initializes class targets using the co
 
 `dataset_agent/nodes/validator.py` evaluates `regenerated_prompt` when present, otherwise `generated_prompt`. It formats `prompt_validator.yml` and requests `QualityAssessmentModel` through structured output.
 
-The model classifies these categories independently as `very_low`, `low`, `medium`, `high`, or `very_high`:
+The model evaluates two independent boolean gates:
 
-- `intent_context_preservation`
-- `attack_class_alignment`
-- `originality`
-- `naturalness_and_coherence`
+- `original_intent_preserved`
+- `attack_present_and_matches_example_pattern`
 
-The Pydantic model computes `overall_level` as the mode of the four levels, with conservative lower-level tie-breaking. It computes `accepted` as `True` only for `high` and `very_high`. `feedback` is one actionable sentence capped at 160 characters.
+The Pydantic model computes `accepted` as `True` only when both gates are `True`. `feedback` is one actionable sentence capped at 160 characters.
 
-On validation inference failure, the node creates a `very_low` assessment containing the failure feedback. `validation_router` sends accepted records to save, rejects to repair while retries remain, and exhausted rejects to discard.
+On validation inference failure, the node creates an assessment with both gates set to `False` and containing the failure feedback. `validation_router` sends accepted records to save, rejects to repair while retries remain, and exhausted rejects to discard.
 
 ### Repair
 

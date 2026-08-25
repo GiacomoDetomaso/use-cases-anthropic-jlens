@@ -64,10 +64,11 @@ def build_worker_generation_plans() -> list[WorkerGenerationPlan]:
                 f"worker {worker_id} has no assigned generation quota; "
                 "adjust worker class groups or increase output_dataset.target_size"
             )
-
+        
         remaining_input_indices = source_dataset.index[
             source_dataset[label_column].isin(class_group)
         ].tolist()
+
         plans.append(
             WorkerGenerationPlan(
                 worker_id=worker_id,

@@ -1,6 +1,3 @@
-from collections import Counter
-from enum import Enum
-
 from pydantic import BaseModel, Field, computed_field, model_validator
 
 from settings import settings
@@ -37,35 +34,12 @@ class OutputModel(BaseModel):
     )
 
 
-class QualityLevel(str, Enum):
-    VERY_LOW = "very_low"
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    VERY_HIGH = "very_high"
-
-
-_QUALITY_LEVEL_ORDER = {
-    QualityLevel.VERY_LOW: 0,
-    QualityLevel.LOW: 1,
-    QualityLevel.MEDIUM: 2,
-    QualityLevel.HIGH: 3,
-    QualityLevel.VERY_HIGH: 4,
-}
-
-
 class QualityAssessmentModel(BaseModel):
-    intent_context_preservation: QualityLevel = Field(
-        description="How well the candidate preserves the source customer intent and e-commerce context."
+    original_intent_preserved: bool = Field(
+        description="True only when the candidate preserves the original customer intent."
     )
-    attack_class_alignment: QualityLevel = Field(
-        description="How clearly the candidate contains a natural prompt injection matching the target attack class."
-    )
-    originality: QualityLevel = Field(
-        description="How clearly the candidate is a fresh re-imagining rather than a copy of the source or examples."
-    )
-    naturalness_and_coherence: QualityLevel = Field(
-        description="How natural, coherent, and instruction-compliant the candidate is."
+    attack_present_and_matches_example_pattern: bool = Field(
+        description="True only when the candidate contains an attack matching at least one target example pattern."
     )
     feedback: str = Field(
         min_length=1,
@@ -75,19 +49,8 @@ class QualityAssessmentModel(BaseModel):
 
     @computed_field
     @property
-    def overall_level(self) -> QualityLevel:
-        levels = [
-            self.intent_context_preservation,
-            self.attack_class_alignment,
-            self.originality,
-            self.naturalness_and_coherence,
-        ]
-        counts = Counter(levels)
-        highest_count = max(counts.values())
-        modes = [level for level, count in counts.items() if count == highest_count]
-        return min(modes, key=lambda level: _QUALITY_LEVEL_ORDER[level])
-
-    @computed_field
-    @property
     def accepted(self) -> bool:
-        return self.overall_level in {QualityLevel.HIGH, QualityLevel.VERY_HIGH}
+        return (
+            self.original_intent_preserved
+            and self.attack_present_and_matches_example_pattern
+        )
