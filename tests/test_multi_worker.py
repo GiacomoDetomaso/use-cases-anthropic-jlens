@@ -3,8 +3,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import main
-from dataset_agent.worker_generation_plan import get_worker_generation_plans
+from dataset_agent import graph_invoker
+from dataset_agent.worker_generation_plan import build_worker_generation_plans
 from settings import Settings, settings
 
 
@@ -19,7 +19,7 @@ class MultiWorkerGenerationTests(unittest.TestCase):
             workflow.workers = 2
             workflow.worker_class_groups = [labels[:13], labels[13:]]
 
-            plans = get_worker_generation_plans()
+            plans = build_worker_generation_plans()
         finally:
             workflow.workers = original_workers
             workflow.worker_class_groups = original_groups
@@ -54,8 +54,10 @@ class MultiWorkerGenerationTests(unittest.TestCase):
             first_worker_file.write_text("first\n", encoding="utf-8")
             second_worker_file.write_text("second\n", encoding="utf-8")
 
-            with patch.object(main, "_output_directory", return_value=output_directory):
-                main._merge_worker_outputs([first_worker_file, second_worker_file])
+            with patch.object(
+                graph_invoker, "_output_directory", return_value=output_directory
+            ):
+                graph_invoker._merge_worker_outputs([first_worker_file, second_worker_file])
 
             self.assertEqual(
                 (output_directory / "dataset.jsonl").read_text(encoding="utf-8"),

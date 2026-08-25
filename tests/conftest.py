@@ -1,11 +1,11 @@
 import pytest
 
-from settings import settings
-
 
 @pytest.fixture
 def vllm_configuration(monkeypatch):
     """Configure the shared settings object for tests that require vLLM mode."""
+    from settings import settings
+
     inference = settings.workflow.inference
     vllm_settings = inference.vllm
     assert vllm_settings is not None
