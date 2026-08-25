@@ -5,6 +5,7 @@ langgraph==1.2.9
 openai==2.54.0
 pydantic==2.13.4
 pandas
+pyarrow
 PyYAML
 loguru
 requests

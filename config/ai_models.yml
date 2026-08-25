@@ -1,6 +1,6 @@
 generation:
   provider: openai
-  model_name: Qwen/Qwen2.5-7B-Instruct-AWQ
+  model_name: KebalBaguette/Qwen2.5-7B-Instruct-abliterated-v2-AWQ
   generation_params:
     base_url: http://localhost:8000/v1
     api_key: dummy

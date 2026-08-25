@@ -20,7 +20,7 @@ inference:
       - name: "max-model-len"
         value: 4096
       - name: "quantization"
-        value: "marlin"
+        value: "compressed-tensors"
       - name: "tensor-parallel-size"
         value: 2
       - name: "enable-prefix-caching"

@@ -7,16 +7,16 @@ source_dataset:
 
 
 target_transformation_examples_dataset:
-  input_source: "hf://datasets/JailbreakBench/JBB-Behaviors/data/harmful-behaviors.csv"
-  class_labels: ["Malware/Hacking", "Economic harm", "Fraud/Deception", "Sexual/Adult content", "Privacy"]
-  data_col_name: "Goal"
-  label_col_name: "Category"
+  input_source: "hf://datasets/neuralchemy/Prompt-injection-dataset/full/train-00000-of-00001.parquet"
+  class_labels: ["adversarial", "jailbreak", "encoding", "direct_injection", "system_manipulation"]
+  data_col_name: "text"
+  label_col_name: "category"
   class_distribution:
-    Malware/Hacking: 40
-    Economic harm: 20
-    Fraud/Deception: 10
-    Sexual/Adult content: 10
-    Privacy: 20
+    direct_injection: 40
+    adversarial: 20
+    jailbreak: 20
+    encoding: 15
+    system_manipulation: 5
     
 output_dataset:
   target_size: 50

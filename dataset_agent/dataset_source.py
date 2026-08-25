@@ -6,6 +6,7 @@ as global singletons that can be accessed everywhere in the application:
     target injection class, used to guide the transformation.
 """
 from functools import lru_cache
+from pathlib import Path
 from typing import Protocol
 
 import pandas as pd
@@ -21,8 +22,22 @@ class _DatasetConfig(Protocol):
     label_col_name: str
 
 
+def _read_dataset(input_source: str) -> pd.DataFrame:
+    suffix = Path(input_source).suffix.lower()
+
+    if suffix == ".csv":
+        return pd.read_csv(input_source)
+    if suffix == ".parquet":
+        return pd.read_parquet(input_source)
+
+    raise ValueError(
+        f"Unsupported dataset format '{suffix or '<none>'}' for '{input_source}'. "
+        "Supported formats are CSV and Parquet."
+    )
+
+
 def _load_and_filter(config: _DatasetConfig) -> pd.DataFrame:
-    df = pd.read_csv(config.input_source)
+    df = _read_dataset(config.input_source)
 
     data_col_name, label = config.data_col_name, config.label_col_name
     keep_cols = [data_col_name, label]
