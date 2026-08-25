@@ -1,3 +1,5 @@
+from sympy import asec
+
 from dataset_agent.core.writers import DatasetWriter, SyntheticRecord
 from dataset_agent.models.dataset_generation_state_model import DatasetState
 
@@ -15,6 +17,9 @@ class SaveNode:
             if state.regenerated_prompt is not None
             else state.generated_prompt
         )
+
+        assert output != None
+        
         record = SyntheticRecord(
             source=state.source.model_dump(),
             target=state.target.model_dump(),
@@ -27,7 +32,11 @@ class SaveNode:
 
         self.writer.append(record)
 
-        logger.info(f"Data point {generated_count} appended to the dataset")
+        logger.info(
+            "Saved record {} using {} output",
+            generated_count,
+            "repaired" if state.regenerated_prompt is not None else "generated",
+        )
 
         serializable = False
         last_generation = generated_count + 1 == state.target_size
@@ -49,7 +58,11 @@ class SaveNode:
                 stop=generated_count + 1
             )
 
-            logger.info(f"Data points from {generated_count - save_checks} up to {generated_count} serialized")
+            logger.info(
+                "Serialized records {} through {}",
+                start,
+                generated_count,
+            )
 
         return state.model_copy(
             update={

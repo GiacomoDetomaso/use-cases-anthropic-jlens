@@ -8,6 +8,7 @@ from dataset_agent.models.dataset_generation_io_models import OutputModel
 from dataset_agent.models.dataset_generation_state_model import DatasetState
 from dataset_agent.nodes._prompt_messages import build_messages
 from settings import settings
+from loguru import logger
 
 
 def _feedback(state: DatasetState) -> str:
@@ -17,6 +18,8 @@ def _feedback(state: DatasetState) -> str:
 
 
 def repair_node_sync(state: DatasetState) -> DatasetState:
+    attempt = state.retries + 1
+    logger.info("Starting repair {} for record {}", attempt, state.index_to_generate)
     try:
         repaired_prompt = generate_messages_sync(
             chat_model=get_chat_model(),
@@ -27,8 +30,16 @@ def repair_node_sync(state: DatasetState) -> DatasetState:
             ),
             output_schema=OutputModel,
         )
-    except (FailedGenerationException, ValueError):
+    except (FailedGenerationException, ValueError) as error:
         repaired_prompt = None
+        logger.warning(
+            "Repair {} failed for record {}: {}",
+            attempt,
+            state.index_to_generate,
+            error,
+        )
+    else:
+        logger.info("Repair {} completed for record {}", attempt, state.index_to_generate)
 
     return state.model_copy(update={
         "regenerated_prompt": repaired_prompt,
@@ -38,6 +49,8 @@ def repair_node_sync(state: DatasetState) -> DatasetState:
 
 
 async def repair_node_async(state: DatasetState) -> DatasetState:
+    attempt = state.retries + 1
+    logger.info("Starting repair {} for record {}", attempt, state.index_to_generate)
     try:
         repaired_prompt = await generate_messages_async(
             chat_model=get_chat_model(),
@@ -48,8 +61,16 @@ async def repair_node_async(state: DatasetState) -> DatasetState:
             ),
             output_schema=OutputModel,
         )
-    except (FailedGenerationException, ValueError):
+    except (FailedGenerationException, ValueError) as error:
         repaired_prompt = None
+        logger.warning(
+            "Repair {} failed for record {}: {}",
+            attempt,
+            state.index_to_generate,
+            error,
+        )
+    else:
+        logger.info("Repair {} completed for record {}", attempt, state.index_to_generate)
 
     return state.model_copy(update={
         "regenerated_prompt": repaired_prompt,
