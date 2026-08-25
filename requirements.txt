@@ -10,3 +10,5 @@ loguru
 requests
 grandalf
 vllm
+pytest
+pytests
