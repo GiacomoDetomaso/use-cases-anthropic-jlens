@@ -60,15 +60,19 @@ async def validator_node_async(state: DatasetState) -> DatasetState:
 
 def _log_assessment(state: DatasetState, assessment: QualityAssessmentModel) -> None:
     log = node_logger.success if assessment.accepted else node_logger.warning
+    candidate = state.regenerated_prompt or state.generated_prompt
+    candidate_kind = "repaired" if state.regenerated_prompt is not None else "generated"
     log(
         "Record {}/{} {}: intent_preserved={}, attack_matches_pattern={}, "
-        "feedback={!r}",
+        "feedback={!r}, {}_prompt={!r}",
         state.index_to_generate + 1,
         state.target_size,
         "accepted" if assessment.accepted else "rejected",
         assessment.original_intent_preserved,
         assessment.attack_present_and_matches_example_pattern,
         assessment.feedback,
+        candidate_kind,
+        candidate.text if candidate is not None else None,
     )
 
 def validation_router(state: DatasetState) -> str:

@@ -20,7 +20,7 @@ from dataset_agent.nodes.validator import (
 )
 from dataset_agent.nodes.repair import repair_node_async, repair_node_sync
 from dataset_agent.nodes.discard import discard_node
-from dataset_agent.nodes.save import SaveNode, save_router
+from dataset_agent.nodes.save import FlushNode, SaveNode, save_router
 from dataset_agent.core.writers import JsonLDatasetWriter
 from settings import settings
 
@@ -62,6 +62,7 @@ def build_and_compile_graph(
             file_name=output_file_name,
         )
     )
+    flush = FlushNode(writer=save.writer)
 
     def to_graph_node(node):
         def wrapped(state):
@@ -97,6 +98,7 @@ def build_and_compile_graph(
     builder.add_node("repair", repair)
     builder.add_node("discard", discard_node)
     builder.add_node("save", save)
+    builder.add_node("flush", flush)
 
     builder.add_edge(START, "pick_input")
     builder.add_edge("pick_input", "pick_target")
@@ -108,7 +110,7 @@ def build_and_compile_graph(
         {
             "success": "validator",
             "retry": "pick_input",
-            "completed": END,
+            "completed": "flush",
         },
     )
 
@@ -128,7 +130,7 @@ def build_and_compile_graph(
         "discard",
         save_router,
         {
-            "completed": END,
+            "completed": "flush",
             "not_completed": "pick_input",
         },
     )
@@ -137,10 +139,12 @@ def build_and_compile_graph(
         "save",
         save_router,
         {
-            "completed": END,
+            "completed": "flush",
             "not_completed": "pick_input"
         }
     )
+
+    builder.add_edge("flush", END)
 
     return builder.compile()
 

@@ -29,6 +29,7 @@ class SaveNode:
         )
 
         generated_count = state.index_to_generate
+        saved_count = generated_count + 1
         last_checkpoint_index = state.last_checkpoint_index
         save_checks = settings.workflow.save_checks
 
@@ -42,29 +43,23 @@ class SaveNode:
         )
 
         serializable = False
-        last_generation = generated_count + 1 == state.target_size
+        last_generation = saved_count == state.target_size
 
         serializable = (
             last_generation
-            or generated_count == save_checks
-            or generated_count - last_checkpoint_index == save_checks
+            or saved_count - last_checkpoint_index >= save_checks
         )
         
         if serializable:
-            if last_generation:
-                start = last_checkpoint_index
-            else:
-                start = max(0, generated_count - save_checks)
-
             self.writer.serialize(
-                start=start, 
-                stop=generated_count + 1
+                start=last_checkpoint_index,
+                stop=saved_count,
             )
 
             node_logger.info(
                 "Checkpoint written for records {} through {}",
-                start + 1,
-                generated_count + 1,
+                last_checkpoint_index + 1,
+                saved_count,
             )
 
         return state.model_copy(
@@ -77,9 +72,28 @@ class SaveNode:
                 "validation_output": None,
                 "should_retry": False,
                 "retries": 0,
-                "last_checkpoint_index": generated_count if serializable else last_checkpoint_index
+                "last_checkpoint_index": saved_count if serializable else last_checkpoint_index,
             }
         )
+
+
+class FlushNode:
+    def __init__(self, writer: DatasetWriter):
+        self.writer = writer
+
+    def __call__(self, state: DatasetState) -> DatasetState:
+        if state.last_checkpoint_index < state.index_to_generate:
+            self.writer.serialize(
+                start=state.last_checkpoint_index,
+                stop=state.index_to_generate,
+            )
+            node_logger.info(
+                "Final checkpoint written for records {} through {}",
+                state.last_checkpoint_index + 1,
+                state.index_to_generate,
+            )
+
+        return state
 
 def save_router(state: DatasetState) -> str:
     if state.index_to_generate == state.target_size:
