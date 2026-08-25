@@ -26,7 +26,7 @@ def _source_class_count(source_dataset) -> dict[str, int]:
     return source_dataset[label_column].value_counts().to_dict()
 
 
-def get_worker_generation_plans() -> list[WorkerGenerationPlan]:
+def build_worker_generation_plans() -> list[WorkerGenerationPlan]:
     """Build one non-overlapping source scope for every configured worker.
 
     Source quotas are calculated once across all labels before they are split
