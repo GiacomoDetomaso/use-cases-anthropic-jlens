@@ -10,13 +10,15 @@ class SaveNode:
         self.writer = writer
 
     def __call__(self, state: DatasetState) -> DatasetState:
+        output = (
+            state.regenerated_prompt
+            if state.regenerated_prompt is not None
+            else state.generated_prompt
+        )
         record = SyntheticRecord(
             source=state.source.model_dump(),
             target=state.target.model_dump(),
-            output=(
-                state.regenerated_prompt.text
-                or state.generated_prompt.text
-            ),
+            output=output.text,
         )
 
         generated_count = state.index_to_generate
