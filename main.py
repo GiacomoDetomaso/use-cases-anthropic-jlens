@@ -7,7 +7,7 @@ from uuid import uuid4
 from dataset_agent.graph import build_and_compile_graph, get_graph_initial_state
 from dataset_agent.worker_generation_plan import (
     WorkerGenerationPlan,
-    get_worker_generation_plans,
+    build_worker_generation_plans,
 )
 from dataset_agent.core.inference.inference_context_manager import inference_environment
 
@@ -18,6 +18,9 @@ from logger import setup_logger
 from loguru import logger
 
 def generate_dataset() -> None:
+    """
+    Primitive to run the graph in synchronous mode
+    """
     initial_state = get_graph_initial_state()
     graph = build_and_compile_graph()
 
@@ -27,6 +30,9 @@ def generate_dataset() -> None:
 
 
 async def generate_dataset_async() -> None:
+    """
+    Primitive to run the graph in asynchronous mode
+    """
     initial_state = get_graph_initial_state()
     graph = build_and_compile_graph()
     
@@ -46,14 +52,18 @@ async def _generate_worker(plan: WorkerGenerationPlan, run_directory: Path) -> P
         plan.initial_state.target_size,
         list(plan.class_labels),
     )
+
     output_file_name = f"worker-{plan.worker_id:02d}.jsonl"
+
     graph = build_and_compile_graph(
         target_size=plan.initial_state.target_size,
         output_path=run_directory,
         output_file_name=output_file_name,
         seed=42 + plan.worker_id,
     )
+
     await graph.ainvoke(plan.initial_state)
+    
     return run_directory / output_file_name
 
 
@@ -75,7 +85,7 @@ def _merge_worker_outputs(worker_files: list[Path]) -> None:
 
 
 async def generate_datasets_with_workers() -> None:
-    plans = get_worker_generation_plans()
+    plans = build_worker_generation_plans()
     run_directory = _output_directory() / ".runs" / uuid4().hex
     run_directory.mkdir(parents=True, exist_ok=False)
 
