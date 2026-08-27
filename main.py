@@ -5,7 +5,7 @@ from logger import setup_logger
 from loguru import logger
 
 
-def main() -> None:
+async def main() -> None:
     setup_logger()
 
     from dataset_agent.graph_invoker import (
@@ -24,14 +24,14 @@ def main() -> None:
             "Executing {} independent workers with forced asynchronous inference",
             settings.workflow.workers,
         )
-        asyncio.run(generate_datasets_with_workers())
+        await generate_datasets_with_workers()
         return
 
     if inference_mode == "vllm" and invoke_mode == "async":
         logger.info(f"Execute vllm inference in mode: {invoke_mode}")
-        asyncio.run(generate_dataset_async())
+        await generate_dataset_async()
     else:
         generate_dataset()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

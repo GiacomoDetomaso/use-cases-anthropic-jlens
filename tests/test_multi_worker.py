@@ -1,10 +1,12 @@
+import asyncio
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from dataset_agent import graph_invoker
 from dataset_agent.worker_generation_plan import build_worker_generation_plans
+import main as application_main
 from settings import Settings, settings
 
 
@@ -63,6 +65,19 @@ class MultiWorkerGenerationTests(unittest.TestCase):
                 (output_directory / "dataset.jsonl").read_text(encoding="utf-8"),
                 "first\nsecond\n",
             )
+
+    def test_async_main_awaits_multi_worker_generation(self):
+        with (
+            patch.object(application_main, "setup_logger"),
+            patch.object(
+                graph_invoker,
+                "generate_datasets_with_workers",
+                new_callable=AsyncMock,
+            ) as generate_workers,
+        ):
+            asyncio.run(application_main.main())
+
+        generate_workers.assert_awaited_once()
 
 
 if __name__ == "__main__":
