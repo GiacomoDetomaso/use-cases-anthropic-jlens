@@ -7,17 +7,18 @@ from settings import settings
 def test_vllm_context_yields_server_and_cleans_up(monkeypatch, vllm_configuration):
     process = MagicMock()
     start_server = MagicMock(return_value=process)
+    stop_server = MagicMock()
     chat_model_accessor = MagicMock()
 
     monkeypatch.setattr(inference_context_manager, "start_vllm_server", start_server)
+    monkeypatch.setattr(inference_context_manager, "stop_vllm_server", stop_server)
     monkeypatch.setattr(inference_context_manager, "get_chat_model", chat_model_accessor)
 
     with inference_context_manager.inference_environment() as yielded_process:
         assert yielded_process is process
 
     start_server.assert_called_once_with(warmup=vllm_configuration.warmup_step)
-    process.terminate.assert_called_once_with()
-    process.wait.assert_called_once_with()
+    stop_server.assert_called_once_with(process)
     chat_model_accessor.cache_clear.assert_called_once_with()
 
 

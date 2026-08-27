@@ -20,12 +20,18 @@ class SaveNode:
             else state.generated_prompt
         )
 
+
+        source = state.source
+        target = state.target
+
+        assert source != None
+        assert target != None
         assert output != None
         
         record = SyntheticRecord(
-            source=state.source.model_dump(),
-            target=state.target.model_dump(),
-            output=output.text,
+            source=source,
+            target=target,
+            output=output,
         )
 
         generated_count = state.index_to_generate

@@ -1,3 +1,4 @@
+import threading
 from unittest.mock import MagicMock
 
 import pytest
@@ -36,11 +37,11 @@ def test_start_vllm_server_starts_process_and_waits_for_healthcheck(
         text=True,
         bufsize=1,
     )
-    thread.assert_called_once_with(
-        target=vllm._forward_logs,
-        args=(process.stdout,),
-        daemon=True,
-    )
+    thread.assert_called_once()
+    assert thread.call_args.kwargs["target"] is vllm._forward_logs
+    assert thread.call_args.kwargs["args"][0] is process.stdout
+    assert isinstance(thread.call_args.kwargs["args"][1], threading.Event)
+    assert thread.call_args.kwargs["daemon"] is True
     thread.return_value.start.assert_called_once_with()
 
 
@@ -65,3 +66,15 @@ def test_start_vllm_server_raises_when_process_dies_before_healthcheck(
         vllm.start_vllm_server(warmup=False)
 
     process.poll.assert_called_once_with()
+
+
+def test_stop_vllm_server_marks_process_as_stopping(monkeypatch):
+    process = MagicMock()
+    shutdown_event = threading.Event()
+    setattr(process, "_vllm_shutdown_event", shutdown_event)
+
+    vllm.stop_vllm_server(process)
+
+    assert shutdown_event.is_set()
+    process.terminate.assert_called_once_with()
+    process.wait.assert_called_once_with(timeout=10)
