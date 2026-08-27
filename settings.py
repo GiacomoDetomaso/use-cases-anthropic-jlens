@@ -58,6 +58,7 @@ class DatasetSettings(BaseModel):
 class OutputDatasetSettings(BaseModel):
     target_size: int
     name: str
+    format: Literal["csv", "jsonl"] = "csv"
 
 
 class AIModelSettings(BaseModel):
@@ -154,6 +155,7 @@ class WorkflowSettings(BaseModel):
     workers: int = Field(default=1, ge=1)
     worker_class_groups: list[list[str]] | None = None
     save_checks: int = Field(default=1, ge=1)
+    resume: bool = True
     inference: WorkflowInferenceSettings
 
 
