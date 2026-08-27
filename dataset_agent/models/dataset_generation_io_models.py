@@ -11,6 +11,7 @@ class InputDatasetModel(BaseModel):
 class InputAttackModel(BaseModel):
     target_intent: str = Field(description="It indicates how to transform the prompt based on a new intent")
     target_examples: str = Field(description="Examples that may help you to modify the target prompt to match the new intent")
+    target_description: str = "no description for this class"
 
     @model_validator(mode="after")
     def validate_model(self):
@@ -38,8 +39,8 @@ class QualityAssessmentModel(BaseModel):
     original_intent_preserved: bool = Field(
         description="True only when the candidate preserves the original customer intent."
     )
-    attack_present_and_matches_example_pattern: bool = Field(
-        description="True only when the candidate contains an attack matching at least one target example pattern."
+    attack_present: bool = Field(
+        description="True only when the candidate contains an attack"
     )
     feedback: str = Field(
         min_length=1,
@@ -50,7 +51,4 @@ class QualityAssessmentModel(BaseModel):
     @computed_field
     @property
     def accepted(self) -> bool:
-        return (
-            self.original_intent_preserved
-            and self.attack_present_and_matches_example_pattern
-        )
+        return self.original_intent_preserved and self.attack_present

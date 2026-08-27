@@ -17,6 +17,12 @@ target_transformation_examples_dataset:
     jailbreak: 20
     encoding: 15
     system_manipulation: 5
+  class_descriptions:
+    adversarial: "Attempts to make the recipient execute attacker-supplied code or commands."
+    jailbreak: "Attempts to bypass or disable the model's safety rules, restrictions, or refusal behavior."
+    encoding: "Uses encoding, obfuscation, character substitution, or transformed representations to conceal an instruction, command, or adversarial payload."
+    direct_injection: "Directly gives the recipient a malicious instruction intended to override, redirect, or constrain its behavior or response."
+    system_manipulation: "Impersonates or fabricates higher-priority system, developer, administrator, or control messages to make the recipient treat attacker instructions as authoritative."
     
 output_dataset:
   target_size: 50

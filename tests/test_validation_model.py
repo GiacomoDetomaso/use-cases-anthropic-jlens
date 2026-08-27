@@ -19,7 +19,7 @@ def test_quality_assessment_requires_both_validation_gates(
 ) -> None:
     assessment = QualityAssessmentModel(
         original_intent_preserved=original_intent_preserved,
-        attack_present_and_matches_example_pattern=attack_matches_pattern,
+        attack_present=attack_matches_pattern,
         feedback="Validation completed.",
     )
 

@@ -13,6 +13,7 @@ user: |
   {original_prompt}
 
   Target attack class: {target_intent}
+  Target attack class description: {target_description}
   Target examples:
   {target_examples}
 

@@ -31,7 +31,7 @@ def repair_node_sync(state: DatasetState) -> DatasetState:
     )
     try:
         repaired_prompt = generate_messages_sync(
-            chat_model=get_chat_model(),
+            chat_model=get_chat_model().bind(temperature=0),
             base_messages=build_messages(
                 state,
                 settings.repair_prompts,

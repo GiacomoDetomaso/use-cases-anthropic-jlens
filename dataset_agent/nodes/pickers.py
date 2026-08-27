@@ -64,6 +64,7 @@ class PickerInputDatasetNode:
 class PickerTargetDatasetNode:
     def __init__(self, dataset: pd.DataFrame, dataset_settings: DatasetSettings, target_size: int, examples_count: int, seed: int | None = None):
         self.examples_count = examples_count
+        self.dataset_settings = dataset_settings
         self.balancer = DistributionBalancer.from_settings(dataset_settings, target_size=target_size, seed=seed)
         self.sampler = DatasetClassSampler(
             dataset=dataset,
@@ -93,6 +94,7 @@ class PickerTargetDatasetNode:
             "target": InputAttackModel(
                 target_intent=class_name,
                 target_examples=target_examples,
+                target_description=self.dataset_settings.get_class_description(class_name),
             ),
             "target_distribution": self.balancer.update_class_distribution(target_distribution, class_name),
         })

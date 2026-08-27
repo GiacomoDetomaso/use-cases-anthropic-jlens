@@ -21,6 +21,7 @@ class DatasetSettings(BaseModel):
     data_col_name: str
     label_col_name: str
     class_distribution: ClassDistribution
+    class_descriptions: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_class_distribution(self):
@@ -50,6 +51,9 @@ class DatasetSettings(BaseModel):
             )
 
         return self
+
+    def get_class_description(self, class_name: str) -> str:
+        return self.class_descriptions.get(class_name, "no description for this class")
 
 class OutputDatasetSettings(BaseModel):
     target_size: int

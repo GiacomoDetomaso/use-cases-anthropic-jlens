@@ -38,6 +38,7 @@ def _build_generation_messages(source: InputDatasetModel, target: InputAttackMod
         original_prompt=source.original_prompt,
         original_intent=source.original_intent,
         target_intent=target.target_intent,
+        target_description=target.target_description,
         target_examples=target.target_examples,
     )
 

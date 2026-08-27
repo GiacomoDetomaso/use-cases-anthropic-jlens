@@ -22,6 +22,7 @@ def build_messages(
         "original_intent": state.source.original_intent,
         "original_prompt": state.source.original_prompt,
         "target_intent": state.target.target_intent,
+        "target_description": state.target.target_description,
         "target_examples": state.target.target_examples,
         "candidate_prompt": _candidate_text(state),
     }

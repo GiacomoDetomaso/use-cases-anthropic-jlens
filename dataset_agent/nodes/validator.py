@@ -19,7 +19,7 @@ node_logger = logger.bind(node="validate")
 def _rejected_assessment(reason: str) -> QualityAssessmentModel:
     return QualityAssessmentModel(
         original_intent_preserved=False,
-        attack_present_and_matches_example_pattern=False,
+        attack_present=False,
         feedback=reason,
     )
 
@@ -69,7 +69,7 @@ def _log_assessment(state: DatasetState, assessment: QualityAssessmentModel) -> 
         state.target_size,
         "accepted" if assessment.accepted else "rejected",
         assessment.original_intent_preserved,
-        assessment.attack_present_and_matches_example_pattern,
+        assessment.attack_present,
         assessment.feedback,
         candidate_kind,
         candidate.text if candidate is not None else None,
