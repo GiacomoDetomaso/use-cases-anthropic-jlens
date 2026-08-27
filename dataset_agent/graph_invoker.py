@@ -41,7 +41,7 @@ def generate_dataset() -> None:
             checkpointer=checkpointer,
         )
         with inference_environment():
-            resume_config = _get_resumable_sync_config(
+            resume_config = _restore_resumable_sync_state(
                 graph, config, output_directory, _dataset_file_name()
             )
             graph.invoke(None if resume_config else initial_state, resume_config or config)
@@ -66,7 +66,7 @@ async def generate_dataset_async() -> None:
             checkpointer=checkpointer,
         )
         with inference_environment():
-            resume_config = await _get_resumable_async_config(
+            resume_config = await _restore_resumable_async_state(
                 graph, config, output_directory, _dataset_file_name()
             )
             await graph.ainvoke(
@@ -97,28 +97,28 @@ def _is_serialized_state(state: dict, record_count: int) -> bool:
     )
 
 
-def _get_resumable_sync_config(graph, config: dict, output_directory: Path, file_name: str):
+def _restore_resumable_sync_state(graph, config: dict, output_directory: Path, file_name: str):
     if not settings.workflow.resume:
         return None
 
     record_count = len(build_dataset_writer(output_directory, file_name).dataset)
     for snapshot in graph.get_state_history(config):
         if _is_serialized_state(snapshot.values, record_count):
-            return snapshot.config
+            return graph.update_state(snapshot.config, {}, as_node="save")
 
     if record_count:
         raise RuntimeError("Shard data exists but no matching state checkpoint was found")
     return None
 
 
-async def _get_resumable_async_config(graph, config: dict, output_directory: Path, file_name: str):
+async def _restore_resumable_async_state(graph, config: dict, output_directory: Path, file_name: str):
     if not settings.workflow.resume:
         return None
 
     record_count = len(build_dataset_writer(output_directory, file_name).dataset)
     async for snapshot in graph.aget_state_history(config):
         if _is_serialized_state(snapshot.values, record_count):
-            return snapshot.config
+            return await graph.aupdate_state(snapshot.config, {}, as_node="save")
 
     if record_count:
         raise RuntimeError("Shard data exists but no matching state checkpoint was found")
@@ -164,7 +164,7 @@ async def _generate_worker(plan: WorkerGenerationPlan, run_directory: Path) -> P
                 seed=42 + plan.worker_id,
                 checkpointer=checkpointer,
             )
-            resume_config = await _get_resumable_async_config(
+            resume_config = await _restore_resumable_async_state(
                 graph, config, run_directory, output_file_name
             )
             await graph.ainvoke(

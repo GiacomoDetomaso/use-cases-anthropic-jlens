@@ -3,6 +3,7 @@ import csv
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from langgraph.checkpoint.memory import InMemorySaver
@@ -120,6 +121,57 @@ class MultiWorkerGenerationTests(unittest.TestCase):
                     SyntheticRecord("second", "second", "second"),
                 ],
             )
+
+    def test_resume_reactivates_the_serialized_checkpoint(self):
+        class Graph:
+            def __init__(self, snapshot):
+                self.snapshot = snapshot
+                self.update_state_calls = []
+
+            def get_state_history(self, config):
+                return iter([self.snapshot])
+
+            def update_state(self, config, values, as_node):
+                self.update_state_calls.append((config, values, as_node))
+                return {"configurable": {"checkpoint_id": "resumed"}}
+
+        record = SyntheticRecord(
+            source={"intent": "source"},
+            target={"category": "target"},
+            output="output",
+        )
+        snapshot = SimpleNamespace(
+            config={"configurable": {"checkpoint_id": "saved"}},
+            values={
+                "index_to_generate": 1,
+                "last_checkpoint_index": 1,
+                "source": None,
+                "target": None,
+                "generated_prompt": None,
+                "regenerated_prompt": None,
+                "validation_output": None,
+            },
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output_directory = Path(temporary_directory)
+            writer = CsvDatasetWriter(output_directory, "worker-01.csv")
+            writer.append(record)
+            writer.serialize(start=0, stop=1)
+            graph = Graph(snapshot)
+
+            config = graph_invoker._restore_resumable_sync_state(
+                graph,
+                {"configurable": {"thread_id": "worker-01"}},
+                output_directory,
+                "worker-01.csv",
+            )
+
+        self.assertEqual(config, {"configurable": {"checkpoint_id": "resumed"}})
+        self.assertEqual(
+            graph.update_state_calls,
+            [(snapshot.config, {}, "save")],
+        )
 
     def test_graph_uses_supplied_checkpointer(self):
         checkpointer = InMemorySaver()
