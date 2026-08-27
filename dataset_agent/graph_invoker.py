@@ -42,24 +42,30 @@ def _output_directory() -> Path:
 
 
 async def _generate_worker(plan: WorkerGenerationPlan, run_directory: Path) -> Path:
-    logger.info(
-        "Worker {} generating {} records from source classes: {}",
-        plan.worker_id,
-        plan.initial_state.target_size,
-        list(plan.class_labels),
-    )
+    worker_name = f"worker-{plan.worker_id:02d}"
+    target_distribution = {
+        class_name: bucket.target
+        for class_name, bucket in plan.initial_state.input_distribution.items()
+    }
 
-    output_file_name = f"worker-{plan.worker_id:02d}.jsonl"
+    with logger.contextualize(worker=worker_name):
+        logger.info(
+            "Generating {} records from source classes: {}",
+            plan.initial_state.target_size,
+            list(plan.class_labels),
+        )
+        logger.info("Class distribution target: {}", target_distribution)
 
-    graph = build_and_compile_graph(
-        target_size=plan.initial_state.target_size,
-        output_path=run_directory,
-        output_file_name=output_file_name,
-        seed=42 + plan.worker_id,
-    )
+        output_file_name = f"worker-{plan.worker_id:02d}.jsonl"
+        graph = build_and_compile_graph(
+            target_size=plan.initial_state.target_size,
+            output_path=run_directory,
+            output_file_name=output_file_name,
+            seed=42 + plan.worker_id,
+        )
 
-    await graph.ainvoke(plan.initial_state)
-    
+        await graph.ainvoke(plan.initial_state)
+
     return run_directory / output_file_name
 
 

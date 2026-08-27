@@ -6,10 +6,12 @@ from loguru import logger
 
 _CONSOLE_FORMAT = (
     "<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | "
-    "<cyan>{extra[node]: <10}</cyan> | <level>{message}</level>\n{exception}"
+    "<cyan>{extra[node]: <10}</cyan> | <magenta>{extra[worker]: <10}</magenta> | "
+    "<level>{message}</level>\n{exception}"
 )
 _FILE_FORMAT = (
     "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[node]: <10} | "
+    "{extra[worker]: <10} | "
     "{message}\n{exception}"
 )
 
@@ -19,7 +21,7 @@ def setup_logger() -> None:
     log_directory.mkdir(exist_ok=True)
 
     logger.remove()
-    logger.configure(extra={"node": "app"})
+    logger.configure(extra={"node": "app", "worker": "main"})
 
     logger.add(
         sys.stdout,

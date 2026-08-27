@@ -52,7 +52,7 @@ def build_and_compile_graph(
         dataset=target_dataset,
         dataset_settings=settings.target_transformation_examples_dataset,
         target_size=target_size,
-        examples_count=3,
+        examples_count=1,
         seed=seed,
     )
 

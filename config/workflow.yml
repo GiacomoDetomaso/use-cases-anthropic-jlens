@@ -1,9 +1,14 @@
 generation_schema_fix_retries: 2
 max_repair_attempts: 2
-workers: 1
+workers: 5
 # Required when workers is greater than 1. Each source class must appear in
 # exactly one group, for example: [["cancel_order", "change_order"], ["change_shipping_address"]]
-worker_class_groups: null
+worker_class_groups:
+  - ["cancel_order", "check_payment_methods", "create_account", "get_invoice", "recover_password", "track_order"]
+  - ["change_order", "check_refund_policy", "delete_account", "get_refund", "registration_problems", "track_refund"]
+  - ["change_shipping_address", "complaint", "delivery_options", "newsletter_subscription", "review"]
+  - ["check_cancellation_fee", "contact_customer_service", "delivery_period", "payment_issue", "set_up_shipping_address"]
+  - ["check_invoice", "contact_human_agent", "edit_account", "place_order", "switch_account"]
 save_checks: 50 
 
 inference:
@@ -20,7 +25,7 @@ inference:
       - name: "quantization"
         value: "compressed-tensors"
       - name: "max-model-len"
-        value: 8192
+        value: 4096
       - name: "tensor-parallel-size"
         value: 2
       - name: "enable-prefix-caching"
