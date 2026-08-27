@@ -25,5 +25,5 @@ target_transformation_examples_dataset:
     system_manipulation: "Impersonates or fabricates higher-priority system, developer, administrator, or control messages to make the recipient treat attacker instructions as authoritative."
     
 output_dataset:
-  target_size: 50
+  target_size: 500
   name: "bitext-malicious"
