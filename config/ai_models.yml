@@ -1,8 +1,8 @@
 generation:
   provider: openai
-  model_name: huihui-ai/Huihui-Qwen3-VL-8B-Instruct-abliterated
+  model_name: quant-mind/Huihui-Qwen3-VL-8B-Instruct-abliterated-AWQ-int4
   generation_params:
     base_url: http://localhost:8000/v1
     api_key: dummy
     temperature: 0.7
-    max_tokens: 1024
+    max_tokens: 2048
