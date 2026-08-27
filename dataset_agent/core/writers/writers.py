@@ -1,14 +1,19 @@
 """Durable dataset writers for CSV and JSONL worker shards."""
 
 import csv
-from io import TextIOWrapper
 import json
+import inspect
 import os
 import shutil
 
 from abc import ABC, abstractmethod
+from io import TextIOWrapper
+from typing import Any, cast
 from pathlib import Path
-from dataclasses import dataclass, asdict, fields
+from dataclasses import dataclass
+from pydantic import BaseModel
+
+from dataset_agent.models.dataset_generation_io_models import InputAttackModel, InputDatasetModel, OutputModel
 
 
 @dataclass
@@ -25,10 +30,33 @@ class SyntheticRecord:
         Generated prompt accepted by the validation stage.
     """
 
-    source: str
-    target: str
-    output: str
+    source: InputAttackModel
+    target: InputDatasetModel
+    output: OutputModel
 
+_SYNTHETIC_RECORD_FIELDS: dict[str, type[BaseModel]] = {
+    name: model_type
+    for name, model_type in inspect.get_annotations(SyntheticRecord).items()
+}
+
+
+def _csv_fieldnames(record_fields: dict[str, type[BaseModel]]) -> list[str]:
+    fieldnames = [
+        model_field
+        for model_type in record_fields.values()
+        for model_field in model_type.model_fields
+    ]
+    duplicate_fieldnames = {
+        fieldname for fieldname in fieldnames if fieldnames.count(fieldname) > 1
+    }
+    if duplicate_fieldnames:
+        duplicates = ", ".join(sorted(duplicate_fieldnames))
+        raise KeyError(f"Duplicate CSV field names: {duplicates}")
+
+    return fieldnames
+
+
+_CSV_FIELDNAMES = _csv_fieldnames(_SYNTHETIC_RECORD_FIELDS)
 
 class DatasetWriter(ABC):
     """Base class for resumable dataset shard writers.
@@ -183,15 +211,28 @@ class JsonLDatasetWriter(DatasetWriter):
         super().__init__(output_path, file_name)
 
     def _reload_resumed_dataset(self, file: TextIOWrapper) -> list[SyntheticRecord]:
-        return [
-            SyntheticRecord(**json.loads(line))
-            for line in file
-            if line.strip()
-        ]
+        loaded_records = []
+
+        for line in file:
+            if line.strip():
+                json_line_loaded = {
+                    field_name: model_type.model_validate(json.loads(line)[field_name]) 
+                    for field_name, model_type in _SYNTHETIC_RECORD_FIELDS.items()
+                }
+
+                loaded_records.append(SyntheticRecord(**json_line_loaded))
+
+        return loaded_records
 
     def _append_records(self, file: TextIOWrapper, records: list[SyntheticRecord]) -> None:
         for record in records:
-            file.write(json.dumps(asdict(record)))
+            # Build the object to dump in the JSONL dataset
+            obj_to_dump = {
+                field_name: cast(BaseModel, getattr(record, field_name)).model_dump()
+                for field_name in _SYNTHETIC_RECORD_FIELDS.keys()
+            }
+
+            file.write(json.dumps(obj_to_dump))
             file.write("\n")
 
     @classmethod
@@ -203,25 +244,27 @@ class JsonLDatasetWriter(DatasetWriter):
 
 
 class CsvDatasetWriter(DatasetWriter):
-    """Dataset writer that stores structured source and target cells as JSON."""
-    
+    """Dataset writer that flattens typed record models into CSV columns."""
+
     def __init__(self, output_path: Path, file_name: str = "dataset.csv"):
         super().__init__(output_path, file_name)
 
     def _reload_resumed_dataset(self, file: TextIOWrapper) -> list[SyntheticRecord]:
         return [
-            SyntheticRecord(
-                source=json.loads(row["source"]),
-                target=json.loads(row["target"]),
-                output=row["output"],
-            )
+            SyntheticRecord(**{
+                record_field: model_type.model_validate({
+                    model_field: row[model_field]
+                    for model_field in model_type.model_fields
+                })
+                for record_field, model_type in _SYNTHETIC_RECORD_FIELDS.items()
+            })
             for row in csv.DictReader(file)
         ]
 
     def _append_records(self, file: TextIOWrapper, records: list[SyntheticRecord]) -> None:
         writer = csv.DictWriter(
             file,
-            fieldnames=[field.name for field in fields(SyntheticRecord)],
+            fieldnames=_CSV_FIELDNAMES,
         )
 
         if file.tell() == 0:
@@ -230,9 +273,11 @@ class CsvDatasetWriter(DatasetWriter):
         for record in records:
             writer.writerow(
                 {
-                    "source": json.dumps(record.source),
-                    "target": json.dumps(record.target),
-                    "output": record.output,
+                    model_field: value
+                    for record_field in _SYNTHETIC_RECORD_FIELDS
+                    for model_field, value in cast(
+                        BaseModel, getattr(record, record_field)
+                    ).model_dump().items()
                 }
             )
 
@@ -241,7 +286,7 @@ class CsvDatasetWriter(DatasetWriter):
         with open(destination, "w", newline="", encoding="utf-8") as output:
             writer = csv.DictWriter(
                 output,
-                fieldnames=[field.name for field in fields(SyntheticRecord)],
+                fieldnames=_CSV_FIELDNAMES,
             )
             writer.writeheader()
             for worker_file in worker_files:

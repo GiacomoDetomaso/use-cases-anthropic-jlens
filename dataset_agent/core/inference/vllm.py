@@ -28,14 +28,16 @@ def _warmup_server(url: str, model_name: str):
             time.sleep(2)
 
 
-def _forward_logs(pipe):
+def _forward_logs(pipe, shutting_down: threading.Event):
     for line in iter(pipe.readline, ""):
         line = line.rstrip()
 
         if not line:
             continue
 
-        if " ERROR " in line:
+        if shutting_down.is_set():
+            logger.debug("[vllm] {}", line)
+        elif " ERROR " in line:
             logger.error("[vllm] {}", line)
         elif " WARNING " in line:
             logger.warning("[vllm] {}", line)
@@ -62,10 +64,12 @@ def start_vllm_server(warmup: bool) -> subprocess.Popen:
         text=True,
         bufsize=1,
     )
+    shutdown_event = threading.Event()
+    setattr(process, "_vllm_shutdown_event", shutdown_event)
 
     threading.Thread(
         target=_forward_logs,
-        args=(process.stdout,),
+        args=(process.stdout, shutdown_event),
         daemon=True,
     ).start()
 
@@ -96,4 +100,27 @@ def start_vllm_server(warmup: bool) -> subprocess.Popen:
         time.sleep(settings.workflow.inference.vllm.health_sleep_seconds)
         
     return process
+
+
+def stop_vllm_server(process: subprocess.Popen, timeout_seconds: float = 10) -> None:
+    """Stop a vLLM server while suppressing expected shutdown output.
+
+    Parameters
+    ----------
+    process : subprocess.Popen
+        vLLM API server process returned by :func:`start_vllm_server`.
+    timeout_seconds : float, default=10
+        Maximum graceful shutdown wait before the process is killed.
+    """
+    shutdown_event = getattr(process, "_vllm_shutdown_event", None)
+    if shutdown_event is not None:
+        shutdown_event.set()
+
+    process.terminate()
+    try:
+        process.wait(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        logger.warning("vLLM did not exit within {} seconds; killing it", timeout_seconds)
+        process.kill()
+        process.wait()
 

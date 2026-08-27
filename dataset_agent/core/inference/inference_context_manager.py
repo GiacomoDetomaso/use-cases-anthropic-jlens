@@ -1,7 +1,7 @@
 import contextlib
 
 from settings import settings
-from dataset_agent.core.inference.vllm import start_vllm_server
+from dataset_agent.core.inference.vllm import start_vllm_server, stop_vllm_server
 
 from dataset_agent.core.llm.ai_model_client_builder import (
     get_chat_model, 
@@ -20,8 +20,7 @@ def inference_environment():
             yield process
         finally:
             logger.debug("🛑 Terminating vLLM server process...")
-            process.terminate()
-            process.wait()
+            stop_vllm_server(process)
 
             # Clear cached models if server restarts
             get_chat_model.cache_clear()

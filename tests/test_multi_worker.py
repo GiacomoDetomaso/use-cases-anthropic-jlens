@@ -7,23 +7,40 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from langgraph.checkpoint.memory import InMemorySaver
+from pydantic import BaseModel
 
 from dataset_agent import graph_invoker
 from dataset_agent.core.writers.writers import (
     CsvDatasetWriter,
     JsonLDatasetWriter,
     SyntheticRecord,
+    _csv_fieldnames,
 )
 from dataset_agent.core.writers.writers_builder import (
     merge_dataset_files,
 )
 from dataset_agent.graph import build_and_compile_graph
+from dataset_agent.models.dataset_generation_io_models import (
+    InputAttackModel,
+    InputDatasetModel,
+    OutputModel,
+)
 from dataset_agent.worker_generation_plan import build_worker_generation_plans
 import main as application_main
 from settings import Settings, settings
 
 
 class MultiWorkerGenerationTests(unittest.TestCase):
+    def test_csv_schema_rejects_duplicate_model_field_names(self):
+        class FirstModel(BaseModel):
+            shared: str
+
+        class SecondModel(BaseModel):
+            shared: str
+
+        with self.assertRaisesRegex(KeyError, "Duplicate CSV field names: shared"):
+            _csv_fieldnames({"first": FirstModel, "second": SecondModel})
+
     def test_worker_plans_partition_classes_and_preserve_total_quota(self):
         workflow = settings.workflow
         original_workers = workflow.workers
@@ -66,8 +83,12 @@ class MultiWorkerGenerationTests(unittest.TestCase):
             output_directory = Path(temporary_directory)
             first_worker_file = output_directory / "worker-01.csv"
             second_worker_file = output_directory / "worker-02.csv"
-            first_worker_file.write_text("source,target,output\nfirst,first,first\n", encoding="utf-8")
-            second_worker_file.write_text("source,target,output\nsecond,second,second\n", encoding="utf-8")
+            first_writer = CsvDatasetWriter(output_directory, first_worker_file.name)
+            second_writer = CsvDatasetWriter(output_directory, second_worker_file.name)
+            first_writer.append(self._record("first"))
+            second_writer.append(self._record("second"))
+            first_writer.serialize(start=0, stop=1)
+            second_writer.serialize(start=0, stop=1)
 
             with patch.object(
                 graph_invoker, "_output_directory", return_value=output_directory
@@ -75,25 +96,33 @@ class MultiWorkerGenerationTests(unittest.TestCase):
                 graph_invoker._merge_worker_outputs([first_worker_file, second_worker_file])
 
             self.assertEqual(
-                list(csv.DictReader((output_directory / "dataset.csv").open(encoding="utf-8"))),
-                [
-                    {"source": "first", "target": "first", "output": "first"},
-                    {"source": "second", "target": "second", "output": "second"},
-                ],
+                CsvDatasetWriter(output_directory, "dataset.csv").dataset,
+                [self._record("first"), self._record("second")],
             )
 
     def test_csv_worker_shard_restores_records_without_duplicates(self):
-        record = SyntheticRecord(
-            source={"intent": "source"},
-            target={"category": "target"},
-            output="output",
-        )
+        record = self._record("first")
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             output_directory = Path(temporary_directory)
             writer = CsvDatasetWriter(output_directory, "worker-01.csv")
             self.assertTrue(writer.append_at(0, record))
             writer.serialize(start=0, stop=1)
+
+            with (output_directory / "worker-01.csv").open(encoding="utf-8") as file:
+                row = next(csv.DictReader(file))
+            self.assertEqual(
+                set(row),
+                {
+                    "target_intent",
+                    "target_examples",
+                    "target_description",
+                    "original_prompt",
+                    "original_intent",
+                    "text",
+                },
+            )
+            self.assertEqual(row["text"], "first output")
 
             resumed_writer = CsvDatasetWriter(output_directory, "worker-01.csv")
             self.assertEqual(resumed_writer.dataset, [record])
@@ -106,8 +135,8 @@ class MultiWorkerGenerationTests(unittest.TestCase):
             second_worker_file = output_directory / "worker-02.jsonl"
             first_writer = JsonLDatasetWriter(output_directory, first_worker_file.name)
             second_writer = JsonLDatasetWriter(output_directory, second_worker_file.name)
-            first_writer.append(SyntheticRecord("first", "first", "first"))
-            second_writer.append(SyntheticRecord("second", "second", "second"))
+            first_writer.append(self._record("first"))
+            second_writer.append(self._record("second"))
             first_writer.serialize(start=0, stop=1)
             second_writer.serialize(start=0, stop=1)
 
@@ -117,8 +146,8 @@ class MultiWorkerGenerationTests(unittest.TestCase):
             self.assertEqual(
                 JsonLDatasetWriter(output_directory, destination.name).dataset,
                 [
-                    SyntheticRecord("first", "first", "first"),
-                    SyntheticRecord("second", "second", "second"),
+                    self._record("first"),
+                    self._record("second"),
                 ],
             )
 
@@ -135,11 +164,7 @@ class MultiWorkerGenerationTests(unittest.TestCase):
                 self.update_state_calls.append((config, values, as_node))
                 return {"configurable": {"checkpoint_id": "resumed"}}
 
-        record = SyntheticRecord(
-            source={"intent": "source"},
-            target={"category": "target"},
-            output="output",
-        )
+        record = self._record("first")
         snapshot = SimpleNamespace(
             config={"configurable": {"checkpoint_id": "saved"}},
             values={
@@ -171,6 +196,20 @@ class MultiWorkerGenerationTests(unittest.TestCase):
         self.assertEqual(
             graph.update_state_calls,
             [(snapshot.config, {}, "save")],
+        )
+
+    @staticmethod
+    def _record(value: str) -> SyntheticRecord:
+        return SyntheticRecord(
+            source=InputAttackModel(
+                target_intent=settings.target_transformation_examples_dataset.class_labels[0],
+                target_examples=f"{value} examples",
+            ),
+            target=InputDatasetModel(
+                original_prompt=f"{value} prompt",
+                original_intent=f"{value} intent",
+            ),
+            output=OutputModel(text=f"{value} output"),
         )
 
     def test_graph_uses_supplied_checkpointer(self):
