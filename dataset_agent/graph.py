@@ -21,7 +21,7 @@ from dataset_agent.nodes.validator import (
 from dataset_agent.nodes.repair import repair_node_async, repair_node_sync
 from dataset_agent.nodes.discard import discard_node
 from dataset_agent.nodes.save import FlushNode, SaveNode, save_router
-from dataset_agent.core.writers import JsonLDatasetWriter
+from dataset_agent.core.writers.writers_builder import build_dataset_writer
 from settings import settings
 
 source_dataset = get_source_dataset()
@@ -37,8 +37,9 @@ def _use_async_nodes() -> bool:
 def build_and_compile_graph(
     target_size: int | None = None,
     output_path: Path | None = None,
-    output_file_name: str = "dataset.jsonl",
+    output_file_name: str = "dataset.csv",
     seed: int = 42,
+    checkpointer=None,
 ):
     target_size = target_size or settings.output_dataset.target_size
     output_path = output_path or Path(__file__).resolve().parent.parent / "output"
@@ -57,7 +58,7 @@ def build_and_compile_graph(
     )
 
     save = SaveNode(
-        writer=JsonLDatasetWriter(
+        writer=build_dataset_writer(
             output_path=output_path,
             file_name=output_file_name,
         )
@@ -146,7 +147,7 @@ def build_and_compile_graph(
 
     builder.add_edge("flush", END)
 
-    return builder.compile()
+    return builder.compile(checkpointer=checkpointer)
 
 def get_graph_initial_state(
     target_size: int | None = None,

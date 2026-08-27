@@ -1,4 +1,4 @@
-from dataset_agent.core.writers import DatasetWriter, SyntheticRecord
+from dataset_agent.core.writers.writers import DatasetWriter, SyntheticRecord
 from dataset_agent.models.dataset_generation_state_model import DatasetState
 
 from settings import settings
@@ -33,7 +33,7 @@ class SaveNode:
         last_checkpoint_index = state.last_checkpoint_index
         save_checks = settings.workflow.save_checks
 
-        self.writer.append(record)
+        self.writer.append_at(generated_count, record)
 
         node_logger.success(
             "Saved record {}/{} using {} output",
@@ -42,20 +42,18 @@ class SaveNode:
             "repaired" if state.regenerated_prompt is not None else "generated",
         )
 
-        serializable = False
         last_generation = saved_count == state.target_size
 
-        serializable = (
+        checkpoint_due = (
             last_generation
             or saved_count - last_checkpoint_index >= save_checks
         )
         
-        if serializable:
+        if checkpoint_due:
             self.writer.serialize(
                 start=last_checkpoint_index,
                 stop=saved_count,
             )
-
             node_logger.info(
                 "Checkpoint written for records {} through {}",
                 last_checkpoint_index + 1,
@@ -72,7 +70,7 @@ class SaveNode:
                 "validation_output": None,
                 "should_retry": False,
                 "retries": 0,
-                "last_checkpoint_index": saved_count if serializable else last_checkpoint_index,
+                "last_checkpoint_index": saved_count if checkpoint_due else last_checkpoint_index,
             }
         )
 

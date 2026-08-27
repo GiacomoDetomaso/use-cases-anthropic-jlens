@@ -1,15 +1,19 @@
-generation_schema_fix_retries: 2
-max_repair_attempts: 2
-workers: 5
+generation_schema_fix_retries: 3
+max_repair_attempts: 3
+workers: 8
 # Required when workers is greater than 1. Each source class must appear in
 # exactly one group, for example: [["cancel_order", "change_order"], ["change_shipping_address"]]
 worker_class_groups:
-  - ["cancel_order", "check_payment_methods", "create_account", "get_invoice", "recover_password", "track_order"]
-  - ["change_order", "check_refund_policy", "delete_account", "get_refund", "registration_problems", "track_refund"]
-  - ["change_shipping_address", "complaint", "delivery_options", "newsletter_subscription", "review"]
-  - ["check_cancellation_fee", "contact_customer_service", "delivery_period", "payment_issue", "set_up_shipping_address"]
-  - ["check_invoice", "contact_human_agent", "edit_account", "place_order", "switch_account"]
+  - ['cancel_order', 'contact_customer_service', 'get_refund', 'switch_account']
+  - ['change_order', 'contact_human_agent', 'newsletter_subscription', 'track_order']
+  - ['change_shipping_address', 'create_account', 'payment_issue', 'track_refund']
+  - ['check_invoice', 'delivery_options', 'recover_password']
+  - ['check_payment_methods', 'delivery_period', 'registration_problems']
+  - ['check_refund_policy', 'edit_account', 'review']
+  - ['check_cancellation_fee', 'delete_account', 'place_order']
+  - ['complaint', 'get_invoice', 'set_up_shipping_address']
 save_checks: 50 
+resume: true
 
 inference:
   mode: "vllm" # either vllm or no_inference_engine
@@ -21,11 +25,11 @@ inference:
       - name: "port"
         value: 8080
       - name: "gpu-memory-utilization"
-        value: 0.80
+        value: 0.85
       - name: "quantization"
         value: "compressed-tensors"
       - name: "max-model-len"
-        value: 4096
+        value: 8192
       - name: "tensor-parallel-size"
         value: 2
       - name: "enable-prefix-caching"

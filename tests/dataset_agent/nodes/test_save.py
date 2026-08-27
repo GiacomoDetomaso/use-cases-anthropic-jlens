@@ -46,7 +46,7 @@ def test_save_uses_available_generated_output(
 
     SaveNode(writer)(state)
 
-    assert writer.append.call_args.args[0].output == expected_output
+    assert writer.append_at.call_args.args[1].output == expected_output
 
 
 def test_save_serializes_the_final_record_without_duplicate_bounds() -> None:
@@ -70,6 +70,29 @@ def test_save_serializes_the_final_record_without_duplicate_bounds() -> None:
 
     writer.serialize.assert_called_once_with(start=1, stop=2)
     assert saved_state.last_checkpoint_index == 2
+
+
+def test_save_defers_serialization_until_the_configured_interval() -> None:
+    writer = Mock()
+    state = DatasetState(
+        target_size=settings.workflow.save_checks + 2,
+        index_to_generate=1,
+        last_checkpoint_index=0,
+        source=InputDatasetModel(
+            original_prompt="Where is my order?",
+            original_intent="get_order_status",
+        ),
+        target=InputAttackModel(
+            target_intent=settings.target_transformation_examples_dataset.class_labels[0],
+            target_examples="Example target",
+        ),
+        generated_prompt=OutputModel(text="pending prompt"),
+    )
+
+    saved_state = SaveNode(writer)(state)
+
+    writer.serialize.assert_not_called()
+    assert saved_state.last_checkpoint_index == 0
 
 
 def test_flush_serializes_records_pending_after_a_final_discard() -> None:
