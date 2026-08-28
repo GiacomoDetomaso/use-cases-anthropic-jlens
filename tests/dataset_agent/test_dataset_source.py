@@ -7,17 +7,14 @@ import pytest
 
 @pytest.fixture
 def dataset_source(monkeypatch):
-    source_dataframe = pd.DataFrame(
-        {"instruction": ["Test"], "intent": ["cancel_order"]}
-    )
-    target_dataframe = pd.DataFrame(
-        {"text": ["Test"], "category": ["adversarial"]}
-    )
+    source_dataframe = pd.DataFrame({"instruction": ["Test"], "intent": ["cancel_order"]})
+    target_dataframe = pd.DataFrame({"text": ["Test"], "category": ["adversarial"]})
     monkeypatch.setattr(pd, "read_csv", lambda _: source_dataframe)
     monkeypatch.setattr(pd, "read_parquet", lambda _: target_dataframe)
-    sys.modules.pop("dataset_agent.dataset_source", None)
+    module_name = "use_cases_anthropic_jlens.dataset_agent.dataset_source"
+    sys.modules.pop(module_name, None)
 
-    return importlib.import_module("dataset_agent.dataset_source")
+    return importlib.import_module(module_name)
 
 
 def test_read_dataset_uses_csv_reader(dataset_source, monkeypatch):

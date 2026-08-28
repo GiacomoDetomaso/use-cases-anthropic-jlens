@@ -2,14 +2,16 @@ from unittest.mock import Mock
 
 import pytest
 
-from dataset_agent.models.dataset_generation_io_models import (
+from use_cases_anthropic_jlens.dataset_agent.models.dataset_generation_io_models import (
     InputAttackModel,
     InputDatasetModel,
     OutputModel,
 )
-from dataset_agent.models.dataset_generation_state_model import DatasetState
-from dataset_agent.nodes.save import FlushNode, SaveNode
-from settings import settings
+from use_cases_anthropic_jlens.dataset_agent.models.dataset_generation_state_model import (
+    DatasetState,
+)
+from use_cases_anthropic_jlens.dataset_agent.nodes.save import FlushNode, SaveNode
+from use_cases_anthropic_jlens.settings import settings
 
 
 @pytest.mark.parametrize(
@@ -38,15 +40,13 @@ def test_save_uses_available_generated_output(
         ),
         generated_prompt=OutputModel(text=generated_text),
         regenerated_prompt=(
-            OutputModel(text=regenerated_text)
-            if regenerated_text is not None
-            else None
+            OutputModel(text=regenerated_text) if regenerated_text is not None else None
         ),
     )
 
     SaveNode(writer)(state)
 
-    assert writer.append_at.call_args.args[1].output == expected_output
+    assert writer.append_at.call_args.args[1].output.text == expected_output
 
 
 def test_save_serializes_the_final_record_without_duplicate_bounds() -> None:

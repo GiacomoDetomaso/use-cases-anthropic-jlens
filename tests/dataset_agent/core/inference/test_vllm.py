@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 
-from dataset_agent.core.inference import vllm
+from use_cases_anthropic_jlens.dataset_agent.core.inference import vllm
 
 
 def test_start_vllm_server_starts_process_and_waits_for_healthcheck(
@@ -71,7 +71,7 @@ def test_start_vllm_server_raises_when_process_dies_before_healthcheck(
 def test_stop_vllm_server_marks_process_as_stopping(monkeypatch):
     process = MagicMock()
     shutdown_event = threading.Event()
-    setattr(process, "_vllm_shutdown_event", shutdown_event)
+    vllm._shutdown_events[process] = shutdown_event
 
     vllm.stop_vllm_server(process)
 

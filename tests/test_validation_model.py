@@ -1,6 +1,8 @@
 import pytest
 
-from dataset_agent.models.dataset_generation_io_models import QualityAssessmentModel
+from use_cases_anthropic_jlens.dataset_agent.models.dataset_generation_io_models import (
+    QualityAssessmentModel,
+)
 
 
 @pytest.mark.parametrize(

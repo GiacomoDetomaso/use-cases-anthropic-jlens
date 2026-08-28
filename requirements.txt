@@ -11,5 +11,4 @@ PyYAML
 loguru
 requests
 grandalf
-vllm
 pytest

@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 
-from dataset_agent.core.inference import inference_context_manager
-from settings import settings
+from use_cases_anthropic_jlens.dataset_agent.core.inference import inference_context_manager
+from use_cases_anthropic_jlens.settings import settings
 
 
 def test_vllm_context_yields_server_and_cleans_up(monkeypatch, vllm_configuration):

@@ -9,25 +9,27 @@ from unittest.mock import AsyncMock, patch
 from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import BaseModel
 
-from dataset_agent import graph_invoker
-from dataset_agent.core.writers.writers import (
+from use_cases_anthropic_jlens import main as application_main
+from use_cases_anthropic_jlens.dataset_agent import graph_invoker
+from use_cases_anthropic_jlens.dataset_agent.core.writers.writers import (
     CsvDatasetWriter,
     JsonLDatasetWriter,
     SyntheticRecord,
     _csv_fieldnames,
 )
-from dataset_agent.core.writers.writers_builder import (
+from use_cases_anthropic_jlens.dataset_agent.core.writers.writers_builder import (
     merge_dataset_files,
 )
-from dataset_agent.graph import build_and_compile_graph
-from dataset_agent.models.dataset_generation_io_models import (
+from use_cases_anthropic_jlens.dataset_agent.graph import build_and_compile_graph
+from use_cases_anthropic_jlens.dataset_agent.models.dataset_generation_io_models import (
     InputAttackModel,
     InputDatasetModel,
     OutputModel,
 )
-from dataset_agent.worker_generation_plan import build_worker_generation_plans
-import main as application_main
-from settings import Settings, settings
+from use_cases_anthropic_jlens.dataset_agent.worker_generation_plan import (
+    build_worker_generation_plans,
+)
+from use_cases_anthropic_jlens.settings import Settings, settings
 
 
 class MultiWorkerGenerationTests(unittest.TestCase):
@@ -71,8 +73,7 @@ class MultiWorkerGenerationTests(unittest.TestCase):
         config["workflow"]["workers"] = 2
         config["workflow"]["worker_class_groups"] = [labels[:13], labels[13:]]
         config["source_dataset"]["class_distribution"] = {
-            label: 100.0 if index == 0 else 0.0
-            for index, label in enumerate(labels)
+            label: 100.0 if index == 0 else 0.0 for index, label in enumerate(labels)
         }
 
         with self.assertRaisesRegex(ValueError, "balanced.*random"):
@@ -91,12 +92,13 @@ class MultiWorkerGenerationTests(unittest.TestCase):
             second_writer.serialize(start=0, stop=1)
 
             with patch.object(
-                graph_invoker, "_output_directory", return_value=output_directory
+                graph_invoker, "_output_directory_path", return_value=output_directory
             ):
                 graph_invoker._merge_worker_outputs([first_worker_file, second_worker_file])
 
+            dataset_file_name = f"{settings.output_dataset.name}.{settings.output_dataset.format}"
             self.assertEqual(
-                CsvDatasetWriter(output_directory, "dataset.csv").dataset,
+                CsvDatasetWriter(output_directory, dataset_file_name).dataset,
                 [self._record("first"), self._record("second")],
             )
 
@@ -201,13 +203,13 @@ class MultiWorkerGenerationTests(unittest.TestCase):
     @staticmethod
     def _record(value: str) -> SyntheticRecord:
         return SyntheticRecord(
-            source=InputAttackModel(
-                target_intent=settings.target_transformation_examples_dataset.class_labels[0],
-                target_examples=f"{value} examples",
-            ),
-            target=InputDatasetModel(
+            source=InputDatasetModel(
                 original_prompt=f"{value} prompt",
                 original_intent=f"{value} intent",
+            ),
+            target=InputAttackModel(
+                target_intent=settings.target_transformation_examples_dataset.class_labels[0],
+                target_examples=f"{value} examples",
             ),
             output=OutputModel(text=f"{value} output"),
         )
@@ -218,7 +220,7 @@ class MultiWorkerGenerationTests(unittest.TestCase):
 
         self.assertIs(graph.checkpointer, checkpointer)
 
-    def test_async_sqlite_checkpointer_reads_empty_worker_state(self):
+    def test_async_sqlite_checkpointer_reads_empty_worker_state(self) -> None:
         async def check() -> None:
             from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
@@ -231,14 +233,12 @@ class MultiWorkerGenerationTests(unittest.TestCase):
                         output_path=output_directory,
                         checkpointer=checkpointer,
                     )
-                    snapshot = await graph.aget_state(
-                        {"configurable": {"thread_id": "worker-01"}}
-                    )
+                    snapshot = await graph.aget_state({"configurable": {"thread_id": "worker-01"}})
                     self.assertFalse(snapshot.values)
 
         asyncio.run(check())
 
-    def test_async_main_awaits_multi_worker_generation(self):
+    def test_async_main_awaits_multi_worker_generation(self) -> None:
         with (
             patch.object(application_main, "setup_logger"),
             patch.object(
@@ -247,7 +247,7 @@ class MultiWorkerGenerationTests(unittest.TestCase):
                 new_callable=AsyncMock,
             ) as generate_workers,
         ):
-            asyncio.run(application_main.main())
+            asyncio.run(application_main.run())
 
         generate_workers.assert_awaited_once()
 

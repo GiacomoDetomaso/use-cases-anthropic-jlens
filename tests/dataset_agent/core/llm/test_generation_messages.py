@@ -1,5 +1,7 @@
-from dataset_agent.core.llm.text_generator import _build_generation_messages
-from dataset_agent.models.dataset_generation_io_models import (
+from use_cases_anthropic_jlens.dataset_agent.core.llm.text_generator import (
+    _build_generation_messages,
+)
+from use_cases_anthropic_jlens.dataset_agent.models.dataset_generation_io_models import (
     InputAttackModel,
     InputDatasetModel,
 )
