@@ -1,17 +1,12 @@
 generation_schema_fix_retries: 3
 max_repair_attempts: 3
-workers: 8
+workers: 3
 # Required when workers is greater than 1. Each source class must appear in
 # exactly one group, for example: [["cancel_order", "change_order"], ["change_shipping_address"]]
 worker_class_groups:
-  - ['cancel_order', 'contact_customer_service', 'get_refund', 'switch_account']
-  - ['change_order', 'contact_human_agent', 'newsletter_subscription', 'track_order']
-  - ['change_shipping_address', 'create_account', 'payment_issue', 'track_refund']
-  - ['check_invoice', 'delivery_options', 'recover_password']
-  - ['check_payment_methods', 'delivery_period', 'registration_problems']
-  - ['check_refund_policy', 'edit_account', 'review']
-  - ['check_cancellation_fee', 'delete_account', 'place_order']
-  - ['complaint', 'get_invoice', 'set_up_shipping_address']
+  - ['cancel_order', 'check_cancellation_fee', 'check_refund_policy', 'contact_human_agent', 'delivery_options', 'get_invoice', 'payment_issue', 'registration_problems', 'switch_account']
+  - ['change_order', 'check_invoice', 'complaint', 'create_account', 'delivery_period', 'get_refund', 'place_order', 'review', 'track_order']
+  - ['change_shipping_address', 'check_payment_methods', 'contact_customer_service', 'delete_account', 'edit_account', 'newsletter_subscription', 'recover_password', 'set_up_shipping_address', 'track_refund']
 save_checks: 50 
 resume: true
 
