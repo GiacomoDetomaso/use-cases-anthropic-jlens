@@ -2,6 +2,7 @@ import contextlib
 
 from loguru import logger
 
+from app.settings import settings
 from dataset_agent.core.inference.vllm import (
     start_vllm_server,
     stop_vllm_server,
@@ -9,7 +10,6 @@ from dataset_agent.core.inference.vllm import (
 from dataset_agent.core.llm.ai_model_client_builder import (
     get_chat_model,
 )
-from dataset_agent.settings import settings
 
 
 @contextlib.contextmanager

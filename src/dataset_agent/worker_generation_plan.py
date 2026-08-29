@@ -5,6 +5,7 @@ from typing import cast
 
 import pandas as pd
 
+from app.settings import settings
 from dataset_agent.core.instance_pickers.balancer import (
     DistributionBalancer,
 )
@@ -14,7 +15,6 @@ from dataset_agent.models.dataset_generation_state_model import (
     DistributionBucket,
     DistributionState,
 )
-from dataset_agent.settings import settings
 
 
 @dataclass(frozen=True)

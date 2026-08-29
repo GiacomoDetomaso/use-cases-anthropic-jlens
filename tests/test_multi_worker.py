@@ -9,8 +9,9 @@ from unittest.mock import AsyncMock, patch
 from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import BaseModel
 
+from app import main as application_main
+from app.settings import Settings, settings
 from dataset_agent import graph_invoker
-from dataset_agent import main as application_main
 from dataset_agent.core.writers.writers import (
     CsvDatasetWriter,
     JsonLDatasetWriter,
@@ -26,7 +27,6 @@ from dataset_agent.models.dataset_generation_io_models import (
     InputDatasetModel,
     OutputModel,
 )
-from dataset_agent.settings import Settings, settings
 from dataset_agent.worker_generation_plan import (
     build_worker_generation_plans,
 )

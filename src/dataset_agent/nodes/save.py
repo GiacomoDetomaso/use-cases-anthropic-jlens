@@ -1,5 +1,6 @@
 from loguru import logger
 
+from app.settings import settings
 from dataset_agent.core.writers.writers import (
     DatasetWriter,
     SyntheticRecord,
@@ -7,7 +8,6 @@ from dataset_agent.core.writers.writers import (
 from dataset_agent.models.dataset_generation_state_model import (
     DatasetState,
 )
-from dataset_agent.settings import settings
 
 node_logger = logger.bind(node="save")
 

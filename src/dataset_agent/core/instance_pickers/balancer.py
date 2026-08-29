@@ -13,7 +13,7 @@ from dataset_agent.models.dataset_generation_state_model import (
 )
 
 if TYPE_CHECKING:
-    from dataset_agent.settings import DatasetSettings
+    from app.settings import DatasetSettings
 
 DistributionStrategy = Literal["balanced", "random"] | Mapping[str, float]
 

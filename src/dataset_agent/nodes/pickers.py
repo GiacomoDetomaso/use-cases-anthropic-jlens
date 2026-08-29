@@ -3,6 +3,7 @@ from typing import cast
 import pandas as pd
 from loguru import logger
 
+from app.settings import DatasetSettings, settings
 from dataset_agent.core.instance_pickers.balancer import (
     DistributionBalancer,
 )
@@ -16,7 +17,6 @@ from dataset_agent.models.dataset_generation_io_models import (
 from dataset_agent.models.dataset_generation_state_model import (
     DatasetState,
 )
-from dataset_agent.settings import DatasetSettings, settings
 
 input_picker_logger = logger.bind(node="pick-input")
 target_picker_logger = logger.bind(node="pick-target")

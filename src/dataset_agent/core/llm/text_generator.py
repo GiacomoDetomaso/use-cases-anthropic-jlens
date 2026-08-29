@@ -8,11 +8,11 @@ from loguru import logger
 from openai import BadRequestError, LengthFinishReasonError
 from pydantic import BaseModel, ValidationError
 
+from app.settings import settings
 from dataset_agent.models.dataset_generation_io_models import (
     InputAttackModel,
     InputDatasetModel,
 )
-from dataset_agent.settings import settings
 
 _INTERNAL_RETRIES = settings.workflow.generation_schema_fix_retries
 node_logger = logger.bind(node="model")

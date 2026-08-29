@@ -2,7 +2,7 @@ from typing import Self
 
 from pydantic import BaseModel, Field, computed_field, model_validator
 
-from dataset_agent.settings import settings
+from app.settings import settings
 
 
 class InputDatasetModel(BaseModel):

@@ -1,5 +1,6 @@
 from loguru import logger
 
+from app.settings import settings
 from dataset_agent.core.llm.ai_model_client_builder import get_chat_model
 from dataset_agent.core.llm.text_generator import (
     FailedGenerationError,
@@ -11,7 +12,6 @@ from dataset_agent.models.dataset_generation_state_model import (
     DatasetState,
 )
 from dataset_agent.nodes._prompt_messages import build_messages
-from dataset_agent.settings import settings
 
 node_logger = logger.bind(node="repair")
 

@@ -20,6 +20,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from loguru import logger
 
+from app.settings import settings
 from dataset_agent.core.inference.inference_context_manager import (
     inference_environment,
 )
@@ -31,7 +32,6 @@ from dataset_agent.graph import (
     build_and_compile_graph,
     get_graph_initial_state,
 )
-from dataset_agent.settings import settings
 from dataset_agent.worker_generation_plan import (
     WorkerGenerationPlan,
     build_worker_generation_plans,

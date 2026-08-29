@@ -2,6 +2,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from app.settings import settings
 from dataset_agent.models.dataset_generation_io_models import (
     InputAttackModel,
     InputDatasetModel,
@@ -11,7 +12,6 @@ from dataset_agent.models.dataset_generation_state_model import (
     DatasetState,
 )
 from dataset_agent.nodes.save import FlushNode, SaveNode
-from dataset_agent.settings import settings
 
 
 @pytest.mark.parametrize(

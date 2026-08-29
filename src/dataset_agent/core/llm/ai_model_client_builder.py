@@ -5,7 +5,7 @@ from functools import lru_cache
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 
-from dataset_agent.settings import AIModelSettings, settings
+from app.settings import AIModelSettings, settings
 
 
 def _build_chat_model(ai_model_settings: AIModelSettings) -> BaseChatModel:

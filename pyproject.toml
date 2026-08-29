@@ -26,14 +26,14 @@ dependencies = [
 ]
 
 [project.scripts]
-use-cases-anthropic-jlens = "dataset_agent.main:main"
+use-cases-anthropic-jlens = "app.main:main"
 
 [build-system]
 requires = ["uv_build>=0.12.7,<0.13.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-module-name = ["dataset_agent", "training"]
+module-name = ["app", "dataset_agent", "training"]
 
 [dependency-groups]
 dev = [

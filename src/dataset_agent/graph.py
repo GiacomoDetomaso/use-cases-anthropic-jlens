@@ -2,6 +2,7 @@ from pathlib import Path
 
 from langgraph.graph import END, START, StateGraph
 
+from app.settings import settings
 from dataset_agent.core.writers.writers_builder import (
     build_dataset_writer,
 )
@@ -30,7 +31,6 @@ from dataset_agent.nodes.validator import (
     validator_node_async,
     validator_node_sync,
 )
-from dataset_agent.settings import settings
 
 source_dataset = get_source_dataset()
 target_dataset = get_target_transformation_examples_dataset()

@@ -2,8 +2,8 @@ import asyncio
 
 from loguru import logger
 
-from dataset_agent.logger import setup_logger
-from dataset_agent.settings import settings
+from app.logger import setup_logger
+from app.settings import settings
 
 
 def main() -> None:

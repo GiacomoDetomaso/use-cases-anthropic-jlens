@@ -13,7 +13,7 @@ from typing import Protocol
 import pandas as pd
 from loguru import logger
 
-from dataset_agent.settings import settings
+from app.settings import settings
 
 
 class _DatasetConfig(Protocol):

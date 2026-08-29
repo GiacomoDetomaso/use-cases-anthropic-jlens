@@ -7,7 +7,7 @@ from weakref import WeakKeyDictionary
 import requests
 from loguru import logger
 
-from dataset_agent.settings import settings
+from app.settings import settings
 
 _shutdown_events: WeakKeyDictionary[subprocess.Popen[str], threading.Event] = WeakKeyDictionary()
 
