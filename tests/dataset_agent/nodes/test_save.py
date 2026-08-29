@@ -2,16 +2,16 @@ from unittest.mock import Mock
 
 import pytest
 
-from use_cases_anthropic_jlens.dataset_agent.models.dataset_generation_io_models import (
+from dataset_agent.models.dataset_generation_io_models import (
     InputAttackModel,
     InputDatasetModel,
     OutputModel,
 )
-from use_cases_anthropic_jlens.dataset_agent.models.dataset_generation_state_model import (
+from dataset_agent.models.dataset_generation_state_model import (
     DatasetState,
 )
-from use_cases_anthropic_jlens.dataset_agent.nodes.save import FlushNode, SaveNode
-from use_cases_anthropic_jlens.settings import settings
+from dataset_agent.nodes.save import FlushNode, SaveNode
+from dataset_agent.settings import settings
 
 
 @pytest.mark.parametrize(

@@ -1,6 +1,6 @@
 import pytest
 
-from use_cases_anthropic_jlens.dataset_agent.models.dataset_generation_io_models import (
+from dataset_agent.models.dataset_generation_io_models import (
     QualityAssessmentModel,
 )
 

@@ -11,7 +11,7 @@ def dataset_source(monkeypatch):
     target_dataframe = pd.DataFrame({"text": ["Test"], "category": ["adversarial"]})
     monkeypatch.setattr(pd, "read_csv", lambda _: source_dataframe)
     monkeypatch.setattr(pd, "read_parquet", lambda _: target_dataframe)
-    module_name = "use_cases_anthropic_jlens.dataset_agent.dataset_source"
+    module_name = "dataset_agent.dataset_source"
     sys.modules.pop(module_name, None)
 
     return importlib.import_module(module_name)

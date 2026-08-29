@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 
-from use_cases_anthropic_jlens.dataset_agent.core.inference import vllm
+from dataset_agent.core.inference import vllm
 
 
 def test_start_vllm_server_starts_process_and_waits_for_healthcheck(

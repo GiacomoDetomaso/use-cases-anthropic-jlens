@@ -9,27 +9,27 @@ from unittest.mock import AsyncMock, patch
 from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import BaseModel
 
-from use_cases_anthropic_jlens import main as application_main
-from use_cases_anthropic_jlens.dataset_agent import graph_invoker
-from use_cases_anthropic_jlens.dataset_agent.core.writers.writers import (
+from dataset_agent import graph_invoker
+from dataset_agent import main as application_main
+from dataset_agent.core.writers.writers import (
     CsvDatasetWriter,
     JsonLDatasetWriter,
     SyntheticRecord,
     _csv_fieldnames,
 )
-from use_cases_anthropic_jlens.dataset_agent.core.writers.writers_builder import (
+from dataset_agent.core.writers.writers_builder import (
     merge_dataset_files,
 )
-from use_cases_anthropic_jlens.dataset_agent.graph import build_and_compile_graph
-from use_cases_anthropic_jlens.dataset_agent.models.dataset_generation_io_models import (
+from dataset_agent.graph import build_and_compile_graph
+from dataset_agent.models.dataset_generation_io_models import (
     InputAttackModel,
     InputDatasetModel,
     OutputModel,
 )
-from use_cases_anthropic_jlens.dataset_agent.worker_generation_plan import (
+from dataset_agent.settings import Settings, settings
+from dataset_agent.worker_generation_plan import (
     build_worker_generation_plans,
 )
-from use_cases_anthropic_jlens.settings import Settings, settings
 
 
 class MultiWorkerGenerationTests(unittest.TestCase):

@@ -4,7 +4,7 @@ import pytest
 @pytest.fixture
 def vllm_configuration(monkeypatch):
     """Configure the shared settings object for tests that require vLLM mode."""
-    from use_cases_anthropic_jlens.settings import settings
+    from dataset_agent.settings import settings
 
     inference = settings.workflow.inference
     vllm_settings = inference.vllm
