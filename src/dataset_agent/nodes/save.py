@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from loguru import logger
 
 from app.settings import settings
@@ -81,8 +83,9 @@ class SaveNode:
 
 
 class FlushNode:
-    def __init__(self, writer: DatasetWriter):
+    def __init__(self, writer: DatasetWriter, final_state_output_path: Path):
         self.writer = writer
+        self._final_state_output_path = final_state_output_path
 
     def __call__(self, state: DatasetState) -> DatasetState:
         if state.last_checkpoint_index < state.index_to_generate:
@@ -95,6 +98,14 @@ class FlushNode:
                 state.last_checkpoint_index + 1,
                 state.index_to_generate,
             )
+
+        try:
+            with open(
+                self._final_state_output_path / "final_state.json", "w", encoding="utf-8"
+            ) as f:
+                f.write(state.model_dump_json(indent=4))
+        except Exception as e:
+            node_logger.error(f"Could not save dataset final state. Error: {e}")
 
         return state
 

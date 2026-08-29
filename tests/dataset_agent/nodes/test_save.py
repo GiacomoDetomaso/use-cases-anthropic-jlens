@@ -1,3 +1,6 @@
+import json
+import os
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -103,6 +106,28 @@ def test_flush_serializes_records_pending_after_a_final_discard() -> None:
         last_checkpoint_index=0,
     )
 
-    FlushNode(writer)(state)
+    FlushNode(writer, Path(__file__).resolve().parents[3] / "output")(state)
 
     writer.serialize.assert_called_once_with(start=0, stop=23)
+
+
+def test_flush_saves_dataset_final_state() -> None:
+    writer = Mock()
+
+    state = DatasetState(
+        target_size=23,
+        index_to_generate=23,
+        last_checkpoint_index=0,
+    )
+
+    path = Path(__file__).resolve().parents[3] / "output"
+    FlushNode(writer, path)(state)
+
+    dirs = os.listdir(str(path))
+
+    assert "final_state.json" in dirs
+
+    with open(path / "final_state.json", encoding="utf-8") as f:
+        payload = json.load(f)
+
+    assert payload == state.model_dump()
