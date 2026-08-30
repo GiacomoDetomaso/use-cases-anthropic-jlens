@@ -52,9 +52,13 @@ def _get_remaining_indices(checkpoint_path: Path) -> list[int]:
 
 
 def main() -> None:
-    """Create augmented plus not-selected original records in the final output file."""
+    """Create a normalized final dataset with unselected source records."""
     from app.settings import settings
     from dataset_agent.dataset_source import get_source_dataset
+    from dataset_agent.graph_invoker import (
+        _generated_examples_dataframe,
+        _source_examples_dataframe,
+    )
 
     print(get_source_dataset().shape)
 
@@ -93,8 +97,10 @@ def main() -> None:
         shutil.copy2(final_path, snapshot_path)
         print(f"Created augmented snapshot: {snapshot_path}")
 
-    augmented_dataset = _read_dataset(snapshot_path)
-    unused_source_dataset = get_source_dataset().loc[remaining_input_indices]
+    augmented_dataset = _generated_examples_dataframe(_read_dataset(snapshot_path))
+    unused_source_dataset = _source_examples_dataframe(
+        get_source_dataset().loc[remaining_input_indices]
+    )
     merged_dataset = pd.concat([augmented_dataset, unused_source_dataset], ignore_index=True)
 
     temporary_path = final_path.with_name(

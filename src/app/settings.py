@@ -61,7 +61,7 @@ class OutputDatasetSettings(BaseModel):
     target_size: int
     name: str
     format: Literal["csv", "jsonl"] = "csv"
-    merge: Literal["none", "all", "not_selected_indeces"] = "none"
+    merge: Literal["all", "not_selected_indeces"] = "all"
 
 
 class AIModelSettings(BaseModel):

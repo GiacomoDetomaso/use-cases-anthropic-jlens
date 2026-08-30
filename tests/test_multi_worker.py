@@ -1,5 +1,6 @@
 import asyncio
 import csv
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -80,7 +81,14 @@ class MultiWorkerGenerationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "balanced.*random"):
             Settings.model_validate(config)
 
-    def test_worker_outputs_merge_in_worker_order(self):
+    def test_output_dataset_rejects_removed_none_merge_mode(self):
+        config = settings.model_dump()
+        config["output_dataset"]["merge"] = "none"
+
+        with self.assertRaises(ValueError):
+            Settings.model_validate(config)
+
+    def test_final_dataset_labels_generated_records_as_malicious(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             output_directory = Path(temporary_directory)
             first_worker_file = output_directory / "worker-01.csv"
@@ -96,15 +104,30 @@ class MultiWorkerGenerationTests(unittest.TestCase):
                 patch.object(
                     graph_invoker, "_output_directory_path", return_value=output_directory
                 ),
-                patch.object(settings.output_dataset, "merge", "none"),
+                patch.object(
+                    graph_invoker,
+                    "get_source_dataset",
+                    return_value=pd.DataFrame(columns=["instruction", "intent"]),
+                ),
+                patch.object(settings.output_dataset, "merge", "all"),
             ):
                 graph_invoker._compose_final_dataset([first_worker_file, second_worker_file])
 
             dataset_file_name = f"{settings.output_dataset.name}.{settings.output_dataset.format}"
-            self.assertEqual(
-                CsvDatasetWriter(output_directory, dataset_file_name).dataset,
-                [self._record("first"), self._record("second")],
-            )
+            final_dataset = pd.read_csv(output_directory / dataset_file_name)
+            metadata_dataset = CsvDatasetWriter(
+                output_directory,
+                f"{settings.output_dataset.name}.metadata.csv",
+            ).dataset
+
+        self.assertEqual(final_dataset.columns.tolist(), ["text", "label_1", "label_2"])
+        self.assertEqual(final_dataset["text"].tolist(), ["first output", "second output"])
+        self.assertEqual(final_dataset["label_1"].tolist(), ["malicious", "malicious"])
+        self.assertEqual(
+            final_dataset["label_2"].tolist(),
+            [self._record("first").target.target_intent] * 2,
+        )
+        self.assertEqual(metadata_dataset, [self._record("first"), self._record("second")])
 
     def test_final_dataset_merge_all_prepends_original_source_examples(self):
         source_dataset = pd.DataFrame(
@@ -132,10 +155,19 @@ class MultiWorkerGenerationTests(unittest.TestCase):
                 / f"{settings.output_dataset.name}.{settings.output_dataset.format}"
             )
 
+        self.assertEqual(final_dataset.columns.tolist(), ["text", "label_1", "label_2"])
         self.assertEqual(
-            final_dataset["instruction"].dropna().tolist(), source_dataset["instruction"].tolist()
+            final_dataset.to_dict(orient="records"),
+            [
+                {"text": "first source", "label_1": "benign", "label_2": "a"},
+                {"text": "second source", "label_1": "benign", "label_2": "b"},
+                {
+                    "text": "augmented output",
+                    "label_1": "malicious",
+                    "label_2": self._record("augmented").target.target_intent,
+                },
+            ],
         )
-        self.assertEqual(final_dataset["text"].dropna().tolist(), ["augmented output"])
 
     def test_final_dataset_merge_not_selected_indices_appends_each_workers_remaining_examples(self):
         source_dataset = pd.DataFrame(
@@ -167,9 +199,17 @@ class MultiWorkerGenerationTests(unittest.TestCase):
                 / f"{settings.output_dataset.name}.{settings.output_dataset.format}"
             )
 
-        self.assertEqual(final_dataset["text"].dropna().tolist(), ["augmented output"])
         self.assertEqual(
-            final_dataset["instruction"].dropna().tolist(), ["third source", "first source"]
+            final_dataset.to_dict(orient="records"),
+            [
+                {
+                    "text": "augmented output",
+                    "label_1": "malicious",
+                    "label_2": self._record("augmented").target.target_intent,
+                },
+                {"text": "third source", "label_1": "benign", "label_2": "c"},
+                {"text": "first source", "label_1": "benign", "label_2": "a"},
+            ],
         )
 
     def test_csv_worker_shard_restores_records_without_duplicates(self):
@@ -222,6 +262,42 @@ class MultiWorkerGenerationTests(unittest.TestCase):
                     self._record("second"),
                 ],
             )
+
+    def test_jsonl_final_merge_writes_labeled_examples(self):
+        source_dataset = pd.DataFrame({"instruction": ["source"], "intent": ["intent"]})
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output_directory = Path(temporary_directory)
+            augmented_file = output_directory / "worker-01.jsonl"
+            output_file = output_directory / f"{settings.output_dataset.name}.jsonl"
+            writer = JsonLDatasetWriter(output_directory, augmented_file.name)
+            writer.append(self._record("augmented"))
+            writer.serialize(start=0, stop=1)
+
+            with (
+                patch.object(
+                    graph_invoker, "_output_directory_path", return_value=output_directory
+                ),
+                patch.object(graph_invoker, "get_source_dataset", return_value=source_dataset),
+                patch.object(settings.output_dataset, "format", "jsonl"),
+                patch.object(settings.output_dataset, "merge", "all"),
+            ):
+                graph_invoker._compose_final_dataset([augmented_file])
+
+            with output_file.open(encoding="utf-8") as file:
+                final_dataset = [json.loads(line) for line in file if line.strip()]
+
+        self.assertEqual(
+            final_dataset,
+            [
+                {"text": "source", "label_1": "benign", "label_2": "intent"},
+                {
+                    "text": "augmented output",
+                    "label_1": "malicious",
+                    "label_2": self._record("augmented").target.target_intent,
+                },
+            ],
+        )
 
     def test_resume_reactivates_the_serialized_checkpoint(self):
         class Graph:

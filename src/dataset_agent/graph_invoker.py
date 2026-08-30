@@ -56,7 +56,7 @@ def _prepare_single_worker_run():
     _clear_checkpoint(checkpoint_path)
 
     if not settings.workflow.resume:
-        (output_directory / _dataset_file_name()).unlink(missing_ok=True)
+        (output_directory / _generated_dataset_file_name()).unlink(missing_ok=True)
 
     config = {"configurable": {"thread_id": "single-worker"}}
 
@@ -75,14 +75,23 @@ def _output_directory_path() -> Path:
 
 
 def _dataset_file_name() -> str:
-    """Build the configured dataset file name.
-
-    Returns
-    -------
-    str
-        A file name composed from the configured dataset name and format.
-    """
+    """Build the configured final dataset file name."""
     return f"{settings.output_dataset.name}.{settings.output_dataset.format}"
+
+
+def _generated_dataset_format() -> str:
+    """Return the resumable worker-shard format for the configured final format."""
+    return "csv" if settings.output_dataset.format == "csv" else "jsonl"
+
+
+def _generated_dataset_file_name() -> str:
+    """Build the temporary shard name used by a single generation worker."""
+    return f"{settings.output_dataset.name}.generated.{_generated_dataset_format()}"
+
+
+def _metadata_dataset_file_name() -> str:
+    """Build the merged raw SyntheticRecord metadata dataset filename."""
+    return f"{settings.output_dataset.name}.metadata.{_generated_dataset_format()}"
 
 
 def _is_serialized_state(state: dict, record_count: int) -> bool:
@@ -240,7 +249,7 @@ async def _generate_worker(
             list(plan.class_labels),
         )
 
-        output_file_name = f"worker-{plan.worker_id:02d}.{settings.output_dataset.format}"
+        output_file_name = f"worker-{plan.worker_id:02d}.{_generated_dataset_format()}"
 
         checkpoint_path = run_directory.parent / ".checkpoints" / f"{worker_name}.sqlite"
         checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
@@ -270,7 +279,7 @@ async def _generate_worker(
 def _compose_final_dataset(
     augmented_files: list[Path], remaining_input_indices: list[int] | None = None
 ) -> None:
-    """Atomically compose augmented output with configured source examples.
+    """Atomically compose the configured final labeled dataset.
 
     Parameters
     ----------
@@ -292,30 +301,25 @@ def _compose_final_dataset(
     output_directory = _output_directory_path()
     output_directory.mkdir(parents=True, exist_ok=True)
     final_path = output_directory / _dataset_file_name()
+    metadata_path = output_directory / _metadata_dataset_file_name()
     temporary_path = output_directory / (f".{final_path.stem}.{uuid4().hex}.tmp{final_path.suffix}")
 
     try:
-        merge_mode = settings.output_dataset.merge
-        if merge_mode == "none":
-            merge_dataset_files(augmented_files, temporary_path)
+        merge_dataset_files(augmented_files, metadata_path)
+        logger.info("Saved merged worker metadata to {}", metadata_path)
+        augmented_dataset = _generated_examples_dataframe(_read_dataset_files(augmented_files))
+        source_dataset = get_source_dataset()
+        if settings.output_dataset.merge == "all":
+            original_dataset = _source_examples_dataframe(source_dataset)
+            combined_dataset = pd.concat([original_dataset, augmented_dataset], ignore_index=True)
         else:
-            augmented_dataset = _read_dataset_files(augmented_files)
-            source_dataset = get_source_dataset()
-            if merge_mode == "all":
-                original_dataset = source_dataset
-                combined_dataset = pd.concat(
-                    [original_dataset, augmented_dataset], ignore_index=True
-                )
-            else:
-                if remaining_input_indices is None:
-                    raise ValueError(
-                        "Missing remaining source indices for configured dataset merge"
-                    )
-                original_dataset = source_dataset.loc[remaining_input_indices]
-                combined_dataset = pd.concat(
-                    [augmented_dataset, original_dataset], ignore_index=True
-                )
-            _write_dataset_file(combined_dataset, temporary_path)
+            if remaining_input_indices is None:
+                raise ValueError("Missing remaining source indices for configured dataset merge")
+            original_dataset = _source_examples_dataframe(
+                source_dataset.loc[remaining_input_indices]
+            )
+            combined_dataset = pd.concat([augmented_dataset, original_dataset], ignore_index=True)
+        _write_dataset_file(combined_dataset, temporary_path)
         os.replace(temporary_path, final_path)
     except Exception:
         temporary_path.unlink(missing_ok=True)
@@ -336,6 +340,30 @@ def _read_dataset_files(files: list[Path]) -> pd.DataFrame:
     if suffix == ".jsonl":
         return pd.concat([pd.read_json(file, lines=True) for file in files], ignore_index=True)
     raise ValueError(f"Unsupported dataset format: {files[0].name}")
+
+
+def _source_examples_dataframe(source_dataset: pd.DataFrame) -> pd.DataFrame:
+    """Project configured source rows into the final labeled dataset schema."""
+    return pd.DataFrame(
+        {
+            "text": source_dataset[settings.source_dataset.data_col_name],
+            "label_1": "benign",
+            "label_2": source_dataset[settings.source_dataset.label_col_name],
+        }
+    )
+
+
+def _generated_examples_dataframe(dataset: pd.DataFrame) -> pd.DataFrame:
+    """Project synthetic records into the final labeled dataset schema."""
+    if {"text", "target_intent"}.issubset(dataset.columns):
+        text, label_2 = dataset["text"], dataset["target_intent"]
+    elif {"output", "target"}.issubset(dataset.columns):
+        text = dataset["output"].map(lambda output: output["text"])
+        label_2 = dataset["target"].map(lambda target: target["target_intent"])
+    else:
+        raise ValueError("Generated dataset does not contain SyntheticRecord fields")
+
+    return pd.DataFrame({"text": text, "label_1": "malicious", "label_2": label_2})
 
 
 def _write_dataset_file(dataset: pd.DataFrame, path: Path) -> None:
@@ -370,17 +398,18 @@ def generate_dataset() -> None:
     with SqliteSaver.from_conn_string(str(checkpoint_path)) as checkpointer:
         graph = build_and_compile_graph(
             output_path=output_directory,
+            output_file_name=_generated_dataset_file_name(),
             checkpointer=checkpointer,
         )
         with inference_environment():
             resume_config = _restore_resumable_sync_state(
-                graph, config, output_directory, _dataset_file_name()
+                graph, config, output_directory, _generated_dataset_file_name()
             )
             graph.invoke(None if resume_config else initial_state, resume_config or config)
             final_state = graph.get_state(config)
 
     _compose_final_dataset(
-        [output_directory / _dataset_file_name()],
+        [output_directory / _generated_dataset_file_name()],
         final_state.values["remaining_input_indices"],
     )
 
@@ -407,11 +436,12 @@ async def generate_dataset_async() -> None:
     async with AsyncSqliteSaver.from_conn_string(str(checkpoint_path)) as checkpointer:
         graph = build_and_compile_graph(
             output_path=output_directory,
+            output_file_name=_generated_dataset_file_name(),
             checkpointer=checkpointer,
         )
         with inference_environment():
             resume_config = await _restore_resumable_async_state(
-                graph, config, output_directory, _dataset_file_name()
+                graph, config, output_directory, _generated_dataset_file_name()
             )
             await graph.ainvoke(
                 None if resume_config else initial_state,
@@ -420,7 +450,7 @@ async def generate_dataset_async() -> None:
             final_state = await graph.aget_state(config)
 
     _compose_final_dataset(
-        [output_directory / _dataset_file_name()],
+        [output_directory / _generated_dataset_file_name()],
         final_state.values["remaining_input_indices"],
     )
 
