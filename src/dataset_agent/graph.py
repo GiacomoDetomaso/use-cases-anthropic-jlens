@@ -73,7 +73,7 @@ def build_and_compile_graph(
         )
     )
     flush = FlushNode(
-        writer=save.writer, final_state_output_path=Path(__file__).resolve().parents[3] / "output"
+        writer=save.writer, final_state_output_path=Path(__file__).resolve().parents[2] / "output"
     )
 
     def to_graph_node(node):
