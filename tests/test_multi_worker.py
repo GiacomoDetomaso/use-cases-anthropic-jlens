@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+import pandas as pd
 from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import BaseModel
 
@@ -91,16 +92,85 @@ class MultiWorkerGenerationTests(unittest.TestCase):
             first_writer.serialize(start=0, stop=1)
             second_writer.serialize(start=0, stop=1)
 
-            with patch.object(
-                graph_invoker, "_output_directory_path", return_value=output_directory
+            with (
+                patch.object(
+                    graph_invoker, "_output_directory_path", return_value=output_directory
+                ),
+                patch.object(settings.output_dataset, "merge", "none"),
             ):
-                graph_invoker._merge_worker_outputs([first_worker_file, second_worker_file])
+                graph_invoker._compose_final_dataset([first_worker_file, second_worker_file])
 
             dataset_file_name = f"{settings.output_dataset.name}.{settings.output_dataset.format}"
             self.assertEqual(
                 CsvDatasetWriter(output_directory, dataset_file_name).dataset,
                 [self._record("first"), self._record("second")],
             )
+
+    def test_final_dataset_merge_all_prepends_original_source_examples(self):
+        source_dataset = pd.DataFrame(
+            {"instruction": ["first source", "second source"], "intent": ["a", "b"]}
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output_directory = Path(temporary_directory)
+            augmented_file = output_directory / "worker-01.csv"
+            writer = CsvDatasetWriter(output_directory, augmented_file.name)
+            writer.append(self._record("augmented"))
+            writer.serialize(start=0, stop=1)
+
+            with (
+                patch.object(
+                    graph_invoker, "_output_directory_path", return_value=output_directory
+                ),
+                patch.object(graph_invoker, "get_source_dataset", return_value=source_dataset),
+                patch.object(settings.output_dataset, "merge", "all"),
+            ):
+                graph_invoker._compose_final_dataset([augmented_file])
+
+            final_dataset = pd.read_csv(
+                output_directory
+                / f"{settings.output_dataset.name}.{settings.output_dataset.format}"
+            )
+
+        self.assertEqual(
+            final_dataset["instruction"].dropna().tolist(), source_dataset["instruction"].tolist()
+        )
+        self.assertEqual(final_dataset["text"].dropna().tolist(), ["augmented output"])
+
+    def test_final_dataset_merge_not_selected_indices_appends_each_workers_remaining_examples(self):
+        source_dataset = pd.DataFrame(
+            {
+                "instruction": ["first source", "second source", "third source"],
+                "intent": ["a", "b", "c"],
+            },
+            index=[10, 20, 30],
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output_directory = Path(temporary_directory)
+            augmented_file = output_directory / "worker-01.csv"
+            writer = CsvDatasetWriter(output_directory, augmented_file.name)
+            writer.append(self._record("augmented"))
+            writer.serialize(start=0, stop=1)
+
+            with (
+                patch.object(
+                    graph_invoker, "_output_directory_path", return_value=output_directory
+                ),
+                patch.object(graph_invoker, "get_source_dataset", return_value=source_dataset),
+                patch.object(settings.output_dataset, "merge", "not_selected_indeces"),
+            ):
+                graph_invoker._compose_final_dataset([augmented_file], [30, 10])
+
+            final_dataset = pd.read_csv(
+                output_directory
+                / f"{settings.output_dataset.name}.{settings.output_dataset.format}"
+            )
+
+        self.assertEqual(final_dataset["text"].dropna().tolist(), ["augmented output"])
+        self.assertEqual(
+            final_dataset["instruction"].dropna().tolist(), ["third source", "first source"]
+        )
 
     def test_csv_worker_shard_restores_records_without_duplicates(self):
         record = self._record("first")

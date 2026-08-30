@@ -16,6 +16,7 @@ import shutil
 from pathlib import Path
 from uuid import uuid4
 
+import pandas as pd
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from loguru import logger
@@ -28,6 +29,7 @@ from dataset_agent.core.writers.writers_builder import (
     build_dataset_writer,
     merge_dataset_files,
 )
+from dataset_agent.dataset_source import get_source_dataset
 from dataset_agent.graph import (
     build_and_compile_graph,
     get_graph_initial_state,
@@ -212,7 +214,9 @@ def _clear_checkpoint(checkpoint_path: Path) -> None:
         path.unlink(missing_ok=True)
 
 
-async def _generate_worker(plan: WorkerGenerationPlan, run_directory: Path) -> Path:
+async def _generate_worker(
+    plan: WorkerGenerationPlan, run_directory: Path
+) -> tuple[Path, list[int]]:
     """Generate one independently checkpointed worker shard.
 
     Parameters
@@ -224,8 +228,8 @@ async def _generate_worker(plan: WorkerGenerationPlan, run_directory: Path) -> P
 
     Returns
     -------
-    pathlib.Path
-        Path to the generated worker shard.
+    tuple[pathlib.Path, list[int]]
+        Path to the generated worker shard and source indices left unused by it.
     """
     worker_name = f"worker-{plan.worker_id:02d}"
 
@@ -258,17 +262,23 @@ async def _generate_worker(plan: WorkerGenerationPlan, run_directory: Path) -> P
                 None if resume_config else plan.initial_state,
                 resume_config or config,
             )
+            final_state = await graph.aget_state(config)
 
-    return run_directory / output_file_name
+    return run_directory / output_file_name, final_state.values["remaining_input_indices"]
 
 
-def _merge_worker_outputs(worker_files: list[Path]) -> None:
-    """Atomically merge worker shards into the configured dataset output.
+def _compose_final_dataset(
+    augmented_files: list[Path], remaining_input_indices: list[int] | None = None
+) -> None:
+    """Atomically compose augmented output with configured source examples.
 
     Parameters
     ----------
-    worker_files : list[pathlib.Path]
-        Generated worker shard paths in their intended merge order.
+    augmented_files : list[pathlib.Path]
+        Generated shard paths in their intended output order.
+    remaining_input_indices : list[int] or None
+        Source indices not consumed during generation. Required only when
+        ``output_dataset.merge`` is ``not_selected_indeces``.
 
     Returns
     -------
@@ -276,9 +286,8 @@ def _merge_worker_outputs(worker_files: list[Path]) -> None:
 
     Raises
     ------
-    Exception
-        Propagates a merge or replacement failure after removing the temporary
-        output file.
+    ValueError
+        If the configured merge mode requires checkpoint state that is absent.
     """
     output_directory = _output_directory_path()
     output_directory.mkdir(parents=True, exist_ok=True)
@@ -286,11 +295,57 @@ def _merge_worker_outputs(worker_files: list[Path]) -> None:
     temporary_path = output_directory / (f".{final_path.stem}.{uuid4().hex}.tmp{final_path.suffix}")
 
     try:
-        merge_dataset_files(worker_files, temporary_path)
+        merge_mode = settings.output_dataset.merge
+        if merge_mode == "none":
+            merge_dataset_files(augmented_files, temporary_path)
+        else:
+            augmented_dataset = _read_dataset_files(augmented_files)
+            source_dataset = get_source_dataset()
+            if merge_mode == "all":
+                original_dataset = source_dataset
+                combined_dataset = pd.concat(
+                    [original_dataset, augmented_dataset], ignore_index=True
+                )
+            else:
+                if remaining_input_indices is None:
+                    raise ValueError(
+                        "Missing remaining source indices for configured dataset merge"
+                    )
+                original_dataset = source_dataset.loc[remaining_input_indices]
+                combined_dataset = pd.concat(
+                    [augmented_dataset, original_dataset], ignore_index=True
+                )
+            _write_dataset_file(combined_dataset, temporary_path)
         os.replace(temporary_path, final_path)
     except Exception:
         temporary_path.unlink(missing_ok=True)
         raise
+
+
+def _read_dataset_files(files: list[Path]) -> pd.DataFrame:
+    """Load homogeneous generated shards into one tabular dataset."""
+    if not files:
+        raise ValueError("At least one CSV or JSONL augmented shard is required")
+
+    if any(file.suffix.lower() != files[0].suffix.lower() for file in files):
+        raise ValueError("Augmented shards must use the same format")
+
+    suffix = files[0].suffix.lower()
+    if suffix == ".csv":
+        return pd.concat([pd.read_csv(file) for file in files], ignore_index=True)
+    if suffix == ".jsonl":
+        return pd.concat([pd.read_json(file, lines=True) for file in files], ignore_index=True)
+    raise ValueError(f"Unsupported dataset format: {files[0].name}")
+
+
+def _write_dataset_file(dataset: pd.DataFrame, path: Path) -> None:
+    """Write a combined dataset in the configured output format."""
+    if path.suffix.lower() == ".csv":
+        dataset.to_csv(path, index=False)
+    elif path.suffix.lower() == ".jsonl":
+        dataset.to_json(path, orient="records", lines=True)
+    else:
+        raise ValueError(f"Unsupported dataset format: {path.name}")
 
 
 def generate_dataset() -> None:
@@ -322,6 +377,12 @@ def generate_dataset() -> None:
                 graph, config, output_directory, _dataset_file_name()
             )
             graph.invoke(None if resume_config else initial_state, resume_config or config)
+            final_state = graph.get_state(config)
+
+    _compose_final_dataset(
+        [output_directory / _dataset_file_name()],
+        final_state.values["remaining_input_indices"],
+    )
 
 
 async def generate_dataset_async() -> None:
@@ -356,6 +417,12 @@ async def generate_dataset_async() -> None:
                 None if resume_config else initial_state,
                 resume_config or config,
             )
+            final_state = await graph.aget_state(config)
+
+    _compose_final_dataset(
+        [output_directory / _dataset_file_name()],
+        final_state.values["remaining_input_indices"],
+    )
 
 
 async def generate_datasets_with_workers() -> None:
@@ -390,5 +457,9 @@ async def generate_datasets_with_workers() -> None:
                 task_group.create_task(_generate_worker(plan, run_directory)) for plan in plans
             ]
 
-    _merge_worker_outputs([task.result() for task in tasks])
+    worker_results = [task.result() for task in tasks]
+    _compose_final_dataset(
+        [worker_file for worker_file, _ in worker_results],
+        [index for _, indices in worker_results for index in indices],
+    )
     logger.info("Merged {} worker outputs into {}", len(plans), _dataset_file_name())

@@ -28,3 +28,4 @@ output_dataset:
   target_size: 4000
   name: "bitext-malicious"
   format: "csv"
+  merge: "not_selected_indeces"
