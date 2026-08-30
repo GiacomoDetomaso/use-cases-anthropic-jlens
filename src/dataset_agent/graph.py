@@ -72,9 +72,7 @@ def build_and_compile_graph(
             file_name=output_file_name,
         )
     )
-    flush = FlushNode(
-        writer=save.writer, final_state_output_path=Path(__file__).resolve().parents[2] / "output"
-    )
+    flush = FlushNode(writer=save.writer)
 
     def to_graph_node(node):
         def wrapped(state):
