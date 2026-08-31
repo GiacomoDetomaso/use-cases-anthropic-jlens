@@ -24,6 +24,7 @@ def test_start_vllm_server_starts_process_and_waits_for_healthcheck(
         MagicMock(return_value=command),
     )
     monkeypatch.setattr(vllm.subprocess, "Popen", popen)
+    monkeypatch.setattr(vllm, "find_spec", lambda _: object())
     monkeypatch.setattr(vllm.threading, "Thread", thread)
     monkeypatch.setattr(vllm.requests, "get", MagicMock(return_value=health_response))
 
@@ -54,6 +55,7 @@ def test_start_vllm_server_raises_when_process_dies_before_healthcheck(
     process.poll.return_value = 1
 
     monkeypatch.setattr(vllm.subprocess, "Popen", MagicMock(return_value=process))
+    monkeypatch.setattr(vllm, "find_spec", lambda _: object())
     monkeypatch.setattr(vllm.threading, "Thread", MagicMock())
     monkeypatch.setattr(
         vllm.requests,
@@ -66,6 +68,13 @@ def test_start_vllm_server_raises_when_process_dies_before_healthcheck(
         vllm.start_vllm_server(warmup=False)
 
     process.poll.assert_called_once_with()
+
+
+def test_start_vllm_server_requires_vllm_package(monkeypatch, vllm_configuration):
+    monkeypatch.setattr(vllm, "find_spec", lambda _: None)
+
+    with pytest.raises(RuntimeError, match="vLLM is required"):
+        vllm.start_vllm_server(warmup=False)
 
 
 def test_stop_vllm_server_marks_process_as_stopping(monkeypatch):

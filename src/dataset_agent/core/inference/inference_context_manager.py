@@ -14,22 +14,11 @@ from dataset_agent.core.llm.ai_model_client_builder import (
 
 @contextlib.contextmanager
 def inference_environment():
-    """Context manager handling model server lifecycle based on active settings."""
-    mode = settings.workflow.inference.mode
-
-    if mode == "vllm":
-        if settings.workflow.inference.vllm:
-            process = start_vllm_server(warmup=settings.workflow.inference.vllm.warmup_step)
-        else:
-            raise ValueError("VLLM config cannot be None in mode VLLm")
-        try:
-            yield process
-        finally:
-            logger.debug("🛑 Terminating vLLM server process...")
-            stop_vllm_server(process)
-
-            # Clear cached models if server restarts
-            get_chat_model.cache_clear()
-    else:
-        # Direct LangChain mode (No server process needed)
-        yield None
+    """Start and stop the configured vLLM server for one generation run."""
+    process = start_vllm_server(warmup=settings.workflow.inference.warmup_step)
+    try:
+        yield process
+    finally:
+        logger.debug("Stopping vLLM server")
+        stop_vllm_server(process)
+        get_chat_model.cache_clear()

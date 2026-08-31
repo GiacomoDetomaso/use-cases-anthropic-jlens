@@ -12,3 +12,5 @@ loguru
 requests
 grandalf
 pytest
+scikit-learn
+imbalanced-learn

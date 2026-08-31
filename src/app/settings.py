@@ -1,3 +1,4 @@
+import sys
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal, Self, cast
@@ -13,6 +14,7 @@ PROMPTS_CONFIG_PATH = CONFIG_DIR / "dataset_generator_prompt.yml"
 VALIDATOR_PROMPTS_CONFIG_PATH = CONFIG_DIR / "prompt_validator.yml"
 REPAIR_PROMPTS_CONFIG_PATH = CONFIG_DIR / "prompt_repair.yml"
 WORKFLOW_CONFIG_PATH = CONFIG_DIR / "workflow.yml"
+TRAINING_CONFIG_PATH = CONFIG_DIR / "training.yml"
 
 ClassDistribution = Literal["balanced", "random"] | dict[str, float]
 
@@ -118,7 +120,7 @@ class VllmSettings(BaseModel):
 
     def get_vllm_cmd(self, model_name: str) -> list[str]:
         cmd = [
-            "python",
+            sys.executable,
             "-m",
             "vllm.entrypoints.openai.api_server",
             "--model",
@@ -145,11 +147,6 @@ class VllmSettings(BaseModel):
         return f"http://localhost:{self.port}/health"
 
 
-class WorkflowInferenceSettings(BaseModel):
-    mode: Literal["no_inference_engine", "vllm"]
-    vllm: VllmSettings | None
-
-
 class WorkflowSettings(BaseModel):
     generation_schema_fix_retries: int = Field(default=0, gt=0, lt=5)
     max_repair_attempts: int = Field(default=0, ge=0, lt=5)
@@ -157,7 +154,19 @@ class WorkflowSettings(BaseModel):
     worker_class_groups: list[list[str]] | None = None
     save_checks: int = Field(default=1, ge=1)
     resume: bool = True
-    inference: WorkflowInferenceSettings
+    inference: VllmSettings
+
+
+class TrainingSettings(BaseModel):
+    model_name: str
+    random_state: int = Field(default=42, ge=1)
+    train_sampling: Literal["no", "70/30", "50/50"]
+    k: int = Field(ge=1)
+    pooling: Literal["avg", "max"] = "avg"
+    target_layer: int = Field(ge=1)
+    processing_device: Literal["gpu", "cpu"] = "gpu"
+    output_device: Literal["gpu", "cpu"] = "cpu"
+    pre_processed_dataset_format: Literal["NumPy", "Parquet"]
 
 
 class Settings(BaseModel):
@@ -169,6 +178,7 @@ class Settings(BaseModel):
     validator_prompts: PromptTemplateSettings
     repair_prompts: PromptTemplateSettings
     workflow: WorkflowSettings
+    training: TrainingSettings
 
     @model_validator(mode="after")
     def validate_settings(self) -> Self:
@@ -188,9 +198,6 @@ class Settings(BaseModel):
                 "multi-worker generation requires source_dataset.class_distribution "
                 "to be `balanced` or `random`"
             )
-
-        if workflow.inference.mode != "vllm" or workflow.inference.vllm is None:
-            raise ValueError("multi-worker generation requires a configured vLLM inference server")
 
         groups = workflow.worker_class_groups
         if groups is None:
@@ -237,6 +244,7 @@ def _load_config() -> Settings:
     validator_prompts_config = _read_yaml(VALIDATOR_PROMPTS_CONFIG_PATH)
     repair_prompts_config = _read_yaml(REPAIR_PROMPTS_CONFIG_PATH)
     workflow_config = _read_yaml(WORKFLOW_CONFIG_PATH)
+    training_config = _read_yaml(TRAINING_CONFIG_PATH)
 
     return Settings(
         **dataset_config,
@@ -245,6 +253,7 @@ def _load_config() -> Settings:
         validator_prompts=PromptTemplateSettings.model_validate(validator_prompts_config),
         repair_prompts=PromptTemplateSettings.model_validate(repair_prompts_config),
         workflow=WorkflowSettings.model_validate(workflow_config),
+        training=TrainingSettings.model_validate(training_config),
     )
 
 

@@ -1,6 +1,7 @@
 import subprocess
 import threading
 import time
+from importlib.util import find_spec
 from typing import IO, Any
 from weakref import WeakKeyDictionary
 
@@ -10,6 +11,14 @@ from loguru import logger
 from app.settings import settings
 
 _shutdown_events: WeakKeyDictionary[subprocess.Popen[str], threading.Event] = WeakKeyDictionary()
+
+
+def _require_vllm() -> None:
+    if find_spec("vllm") is None:
+        raise RuntimeError(
+            "vLLM is required to generate datasets. Install the Kaggle runtime with "
+            "`uv sync --extra vllm`."
+        )
 
 
 def _warmup_server(url: str, model_name: str) -> None:
@@ -53,13 +62,11 @@ def _forward_logs(pipe: IO[Any], shutting_down: threading.Event) -> None:
 
 def start_vllm_server(warmup: bool) -> subprocess.Popen[str]:
     """Reads YAML config and launches a background vLLM OpenAI-compatible server."""
+    _require_vllm()
     model_name = settings.ai_models.generation.model_name
 
     # Construct CLI command dynamically
-    vllm_settings = settings.workflow.inference.vllm
-
-    if vllm_settings is None:
-        raise ValueError("VLLM cannot be none if modality is VLLM")
+    vllm_settings = settings.workflow.inference
     cmd = vllm_settings.get_vllm_cmd(model_name=model_name)
 
     logger.info(f"🚀 Launching vLLM server for model: {model_name}...")

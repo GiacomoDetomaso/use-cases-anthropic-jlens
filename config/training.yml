@@ -1,2 +1,10 @@
-pre-process:
-  
+model_name: "" # a j-lens supported model, that should be downloaded from huggingface
+random_state: 42
+
+train_sampling: "no" # either no, 70/30, 50/50
+k: 10 # indicates top K j-lens vector 
+pooling: "avg" # either avg or max
+target_layer: 14
+processing_device: "gpu"
+output_device: "cpu"
+pre_processed_dataset_format: "NumPy" # either NumPy/Parquet

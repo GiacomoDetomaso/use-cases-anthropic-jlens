@@ -37,10 +37,7 @@ target_dataset = get_target_transformation_examples_dataset()
 
 
 def _use_async_nodes() -> bool:
-    vllm_settings = settings.workflow.inference.vllm
-    return settings.workflow.workers > 1 or (
-        vllm_settings is not None and vllm_settings.invoke_mode == "async"
-    )
+    return settings.workflow.workers > 1 or (settings.workflow.inference.invoke_mode == "async")
 
 
 def build_and_compile_graph(
