@@ -8,18 +8,17 @@ from training.dataset import feature
 
 
 @pytest.fixture
-def split_directory(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
-    output_directory = tmp_path / "splits"
-    output_directory.mkdir()
-    monkeypatch.setattr(feature, "SPLITTED_DATASET_FOLDER", output_directory)
-    return output_directory
+def split_manifest_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    manifest_path = tmp_path / "split_manifest.csv"
+    monkeypatch.setattr(feature, "SPLIT_MANIFEST_PATH", manifest_path)
+    return manifest_path
 
 
 @pytest.fixture
-def pre_processed_directory(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
-    output_directory = tmp_path / "pre_processed"
-    monkeypatch.setattr(feature, "PRE_PROCESSED_DATASET_FOLDER", output_directory)
-    return output_directory
+def feature_dataset_base_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    output_path = tmp_path / "features"
+    monkeypatch.setattr(feature, "FEATURE_EXTRACTED_BASE_FILE_PATH_NO_EXT", output_path)
+    return output_path
 
 
 @pytest.mark.parametrize(
@@ -31,17 +30,24 @@ def pre_processed_directory(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
         ("concat", [99.0, 99.0]),
     ],
 )
-def test_extract_jlens_from_splits_saves_pooled_token_embedding_features(
+def test_extract_jlens_features_saves_id_keyed_token_embedding_features(
     monkeypatch: pytest.MonkeyPatch,
-    split_directory: Path,
-    pre_processed_directory: Path,
+    split_manifest_path: Path,
+    feature_dataset_base_path: Path,
     embedding_pooling: str,
     expected_features: list[float],
 ) -> None:
     import torch
 
-    pd.Series(["train text"]).to_csv(split_directory / "x_train.csv")
-    pd.Series(["test text"]).to_csv(split_directory / "x_test.csv")
+    pd.DataFrame(
+        {
+            "example_id": [0, 1],
+            "text": ["first text", "second text"],
+            "label": [0, 1],
+            "split": ["train", "test"],
+            "selected_for_training": [True, False],
+        }
+    ).to_csv(split_manifest_path, index=False)
 
     class FakeLens:
         def apply(self, model, text, *, layers):
@@ -74,9 +80,13 @@ def test_extract_jlens_from_splits_saves_pooled_token_embedding_features(
     )
     monkeypatch.setattr(feature, "_load_jlens_model", lambda: (FakeModel(), FakeLens()))
 
-    feature.extract_jlens_from_splits()
+    feature.extract_jlens_features()
 
-    np.testing.assert_allclose(
-        np.load(pre_processed_directory / "x_train.npy"), [expected_features]
-    )
-    np.testing.assert_allclose(np.load(pre_processed_directory / "x_test.npy"), [expected_features])
+    artifact_path = feature_dataset_base_path.with_suffix(".npz")
+    artifact = np.load(artifact_path)
+    np.testing.assert_array_equal(artifact["example_id"], [0, 1])
+    np.testing.assert_allclose(artifact["features"], [expected_features, expected_features])
+
+    feature_dataset = feature.load_feature_dataset(artifact_path)
+    assert list(feature_dataset.columns) == ["example_id", "feature_0", "feature_1"]
+    np.testing.assert_allclose(feature_dataset.iloc[:, 1:], [expected_features, expected_features])

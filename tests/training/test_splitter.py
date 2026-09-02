@@ -13,11 +13,10 @@ def source_dataset() -> pd.DataFrame:
 
 
 @pytest.fixture
-def split_directory(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
-    output_directory = tmp_path / "splits"
-    output_directory.mkdir()
-    monkeypatch.setattr(splitter, "SPLITTED_DATASET_FOLDER", output_directory)
-    return output_directory
+def split_manifest_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    manifest_path = tmp_path / "split_manifest.csv"
+    monkeypatch.setattr(splitter, "SPLIT_MANIFEST_PATH", manifest_path)
+    return manifest_path
 
 
 @pytest.mark.parametrize(
@@ -27,7 +26,7 @@ def split_directory(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
 def test_build_splits_reads_dataset_with_configured_format(
     monkeypatch: pytest.MonkeyPatch,
     source_dataset: pd.DataFrame,
-    split_directory: Path,
+    split_manifest_path: Path,
     dataset_format: str,
     reader_name: str,
 ) -> None:
@@ -48,7 +47,7 @@ def test_build_splits_reads_dataset_with_configured_format(
 
 def test_build_splits_rejects_unknown_dataset_format(
     monkeypatch: pytest.MonkeyPatch,
-    split_directory: Path,
+    split_manifest_path: Path,
 ) -> None:
     monkeypatch.setattr(splitter.settings.output_dataset, "format", "parquet")
 
@@ -56,10 +55,10 @@ def test_build_splits_rejects_unknown_dataset_format(
         splitter.build_splits()
 
 
-def test_build_splits_saves_each_split_as_csv(
+def test_build_splits_saves_complete_manifest(
     monkeypatch: pytest.MonkeyPatch,
     source_dataset: pd.DataFrame,
-    split_directory: Path,
+    split_manifest_path: Path,
 ) -> None:
     read_csv = pd.read_csv
     monkeypatch.setattr(splitter.settings.output_dataset, "format", "csv")
@@ -68,9 +67,20 @@ def test_build_splits_saves_each_split_as_csv(
 
     splitter.build_splits()
 
-    expected_files = {"x_train.csv", "y_train.csv", "x_test.csv", "y_test.csv"}
-    assert {path.name for path in split_directory.iterdir()} == expected_files
-    assert read_csv(split_directory / "y_test.csv").iloc[:, 1].isin([0, 1]).all()
+    manifest = read_csv(split_manifest_path)
+    assert list(manifest.columns) == [
+        "example_id",
+        "text",
+        "label",
+        "split",
+        "selected_for_training",
+    ]
+    assert manifest["example_id"].is_unique
+    assert len(manifest) == len(source_dataset)
+    assert manifest["label"].isin([0, 1]).all()
+    assert manifest["split"].value_counts().to_dict() == {"train": 85, "test": 15}
+    assert manifest.loc[manifest["split"] == "train", "selected_for_training"].all()
+    assert not manifest.loc[manifest["split"] == "test", "selected_for_training"].any()
 
 
 @pytest.mark.parametrize(
@@ -80,7 +90,7 @@ def test_build_splits_saves_each_split_as_csv(
 def test_build_splits_applies_configured_training_balance(
     monkeypatch: pytest.MonkeyPatch,
     source_dataset: pd.DataFrame,
-    split_directory: Path,
+    split_manifest_path: Path,
     sampling: str,
     expected_counts: dict[int, int],
 ) -> None:
@@ -91,5 +101,7 @@ def test_build_splits_applies_configured_training_balance(
 
     splitter.build_splits()
 
-    labels = read_csv(split_directory / "y_train.csv").iloc[:, 1]
+    manifest = read_csv(split_manifest_path)
+    labels = manifest.loc[manifest["selected_for_training"], "label"]
     assert labels.value_counts().to_dict() == expected_counts
+    assert len(manifest) == len(source_dataset)
