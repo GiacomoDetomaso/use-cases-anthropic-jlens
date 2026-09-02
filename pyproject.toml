@@ -27,6 +27,7 @@ dependencies = [
     "PyYAML",
     "requests",
     "scikit-learn>=1.9.0",
+    "sentence-transformers",
 ]
 
 [project.optional-dependencies]

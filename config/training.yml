@@ -2,8 +2,9 @@ model_name: "" # a j-lens supported model, that should be downloaded from huggin
 random_state: 42
 
 train_sampling: "no" # either no, 70/30, 50/50
-k: 10 # indicates top K j-lens vector 
-pooling: "avg" # either avg or max
+k: 10 # number of highest-scoring J-lens tokens per position
+embedding_model_name: "sentence-transformers/all-MiniLM-L6-v2"
+embedding_pooling: "logit_weighted" # mean, max, logit_weighted, or concat
 target_layer: 14
 processing_device: "gpu"
 output_device: "cpu"

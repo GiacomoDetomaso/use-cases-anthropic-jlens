@@ -162,7 +162,8 @@ class TrainingSettings(BaseModel):
     random_state: int = Field(default=42, ge=1)
     train_sampling: Literal["no", "70/30", "50/50"]
     k: int = Field(ge=1)
-    pooling: Literal["avg", "max"] = "avg"
+    embedding_model_name: str
+    embedding_pooling: Literal["mean", "max", "logit_weighted", "concat"]
     target_layer: int = Field(ge=1)
     processing_device: Literal["gpu", "cpu"] = "gpu"
     output_device: Literal["gpu", "cpu"] = "cpu"
