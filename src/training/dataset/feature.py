@@ -1,5 +1,6 @@
-from pathlib import Path
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import jlens  # type: ignore[import-untyped]
 import numpy as np
@@ -15,6 +16,9 @@ from training.dataset._paths import (
     SPLIT_MANIFEST_PATH,
 )
 from training.dataset.splitter import EXAMPLE_ID_COLUMN, TEXT_COLUMN
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _normalise_model_name(model_name: str) -> str:
