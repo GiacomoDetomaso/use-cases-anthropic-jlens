@@ -315,9 +315,11 @@ def _extract_features(
     features = []
     target_layer = settings.training.target_layer
 
-    for text in texts.astype(str):
+    for i, text in enumerate(texts.astype(str)):
         # Read the model's next-token predispositions at every token position.
         lens_logits_dict, _, _ = lens.apply(model, text, layers=[target_layer])
+
+        logger.info(f"{i}/{len(texts)}) Lens extracted for text: {text}")
 
         features.append(
             _extract_embedding_features(
@@ -326,6 +328,8 @@ def _extract_features(
                 embedding_model,
             )
         )
+
+        logger.info(f"{i}/{len(texts)}) Feature appended")
 
     return np.stack(features)
 
