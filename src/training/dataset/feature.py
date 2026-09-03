@@ -176,7 +176,6 @@ def _load_jlens_model() -> tuple[jlens.LensModel, jlens.JacobianLens]:
 
 def _pool_candidate_embeddings(
     candidate_embeddings: torch.Tensor,
-    top_k_logits: torch.Tensor,
     decoded_candidates: list[str],
     embedding_model: SentenceTransformer,
 ) -> torch.Tensor:
@@ -190,11 +189,8 @@ def _pool_candidate_embeddings(
     Parameters
     ----------
     candidate_embeddings : torch.Tensor
-        Candidate-token embeddings with shape
-        ``(n_positions, k, embedding_size)``.
-    top_k_logits : torch.Tensor
-        Top-k logits corresponding to candidate tokens, with shape
-        ``(n_positions, k)``.
+        Flattened candidate-token embeddings with shape
+        ``(n_positions * k, embedding_size)``.
     decoded_candidates : list[str]
         Flattened list of decoded top-k token candidates.
     embedding_model : SentenceTransformer
@@ -212,14 +208,11 @@ def _pool_candidate_embeddings(
     """
     match settings.training.embedding_pooling:
         case "mean":
-            return candidate_embeddings.mean(dim=(0, 1))
+            return candidate_embeddings.mean(dim=0)
         case "max":
-            return candidate_embeddings.amax(dim=(0, 1))
+            return candidate_embeddings.amax(dim=0)
         case "logit_weighted":
-            weights = torch.softmax(top_k_logits, dim=-1).to(candidate_embeddings.device)[
-                ..., torch.newaxis
-            ]
-            return (candidate_embeddings * weights).sum(dim=1).mean(dim=0)
+            raise NotImplementedError("Logit-weighted embedding pooling is not implemented")
         case "concat":
             return embedding_model.encode(
                 [" ".join(decoded_candidates)], convert_to_tensor=True
@@ -245,8 +238,8 @@ def _extract_embedding_features(
         J-lens vocabulary logits with shape
         ``(n_positions, vocabulary_size)``.
     tokenizer : Any
-        Tokenizer implementing ``batch_decode`` for converting token IDs to
-        text candidates.
+        Tokenizer implementing ``decode`` for converting token IDs to text
+        candidates.
     embedding_model : SentenceTransformer
         Sentence-transformer model used to embed decoded token candidates.
 
@@ -259,22 +252,31 @@ def _extract_embedding_features(
     # Shape [n_position, k]: retain top k concepts per position.
     top_k = logits.topk(settings.training.k, dim=-1)
 
-    # Decode the flattened token candidates.
-    decoded_candidates = tokenizer.batch_decode(
-        top_k.indices.flatten().tolist(),
-        skip_special_tokens=True,
-        clean_up_tokenization_spaces=False,
-    )
+    # Decode candidates individually because some tokenizer implementations
+    # treat a flat list of token IDs as one sequence when batch decoding.
+    decoded_candidates = [
+        tokenizer.decode(
+            [token_id],
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=False,
+        )
+        for token_id in top_k.indices.flatten().tolist()
+    ]
 
-    # Shape: [n_position, k, embedding_size].
+    # Shape: [n_position * k, embedding_size].
     candidate_embeddings = embedding_model.encode(
         decoded_candidates,
         convert_to_tensor=True,
-    ).reshape(*top_k.indices.shape, -1)
+    )
+    expected_embeddings = top_k.indices.numel()
+    if candidate_embeddings.ndim != 2 or candidate_embeddings.shape[0] != expected_embeddings:
+        raise RuntimeError(
+            "Token candidate embedding count does not match the requested top-k candidates: "
+            f"expected {expected_embeddings}, received shape {tuple(candidate_embeddings.shape)}"
+        )
 
     pooled_features = _pool_candidate_embeddings(
         candidate_embeddings,
-        top_k.values,
         decoded_candidates,
         embedding_model,
     )

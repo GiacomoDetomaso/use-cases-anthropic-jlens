@@ -4,7 +4,7 @@ random_state: 42
 train_sampling: "70/30" # either no, 70/30, 50/50
 k: 10 # number of highest-scoring J-lens tokens per position
 embedding_model_name: "sentence-transformers/all-MiniLM-L6-v2"
-embedding_pooling: "logit_weighted" # mean, max, logit_weighted, or concat
+embedding_pooling: "mean" # mean, max, logit_weighted, or concat
 target_layer: 14
 processing_device: "gpu"
 output_device: "cpu"

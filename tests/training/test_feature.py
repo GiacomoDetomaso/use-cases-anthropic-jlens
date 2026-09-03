@@ -26,7 +26,6 @@ def feature_dataset_base_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
     [
         ("mean", [1.5, 1.0]),
         ("max", [2.0, 1.0]),
-        ("logit_weighted", [1.7310586, 1.0]),
         ("concat", [99.0, 99.0]),
     ],
 )
@@ -55,8 +54,8 @@ def test_extract_jlens_features_saves_id_keyed_token_embedding_features(
             return {layers[0]: logits}, None, None
 
     class FakeTokenizer:
-        def batch_decode(self, token_ids, **kwargs):
-            return [f"token-{token_id}" for token_id in token_ids]
+        def decode(self, token_ids, **kwargs):
+            return f"token-{token_ids[0]}"
 
     class FakeEmbeddingModel:
         def encode(self, texts, *, convert_to_tensor=False):
@@ -90,3 +89,16 @@ def test_extract_jlens_features_saves_id_keyed_token_embedding_features(
     feature_dataset = feature.load_feature_dataset(artifact_path)
     assert list(feature_dataset.columns) == ["example_id", "feature_0", "feature_1"]
     np.testing.assert_allclose(feature_dataset.iloc[:, 1:], [expected_features, expected_features])
+
+
+def test_logit_weighted_pooling_is_not_implemented(monkeypatch: pytest.MonkeyPatch) -> None:
+    import torch
+
+    monkeypatch.setattr(feature.settings.training, "embedding_pooling", "logit_weighted")
+
+    with pytest.raises(NotImplementedError, match="not implemented"):
+        feature._pool_candidate_embeddings(
+            torch.tensor([[1.0, 2.0]]),
+            ["token"],
+            embedding_model=None,  # type: ignore[arg-type]
+        )
