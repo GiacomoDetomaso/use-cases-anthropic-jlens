@@ -1,7 +1,7 @@
-model_name: "" # a j-lens supported model, that should be downloaded from huggingface
+model_name: "Qwen/Qwen3.5-4B" # a j-lens supported model, that should be downloaded from huggingface
 random_state: 42
 
-train_sampling: "no" # either no, 70/30, 50/50
+train_sampling: "70/30" # either no, 70/30, 50/50
 k: 10 # number of highest-scoring J-lens tokens per position
 embedding_model_name: "sentence-transformers/all-MiniLM-L6-v2"
 embedding_pooling: "logit_weighted" # mean, max, logit_weighted, or concat

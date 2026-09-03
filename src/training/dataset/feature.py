@@ -69,13 +69,19 @@ def _find_lens_file(model_name: str) -> str:
     """
     from huggingface_hub import HfApi
 
-    normalised_model_name = _normalise_model_name(model_name)
+    normalised_model_names = {
+        _normalise_model_name(model_name),
+        _normalise_model_name(model_name.rsplit("/", maxsplit=1)[-1]),
+    }
     files = HfApi().list_repo_files(JLENS_REPOSITORY, repo_type="model")
     matching_files = [
         file_name
         for file_name in files
         if file_name.endswith(".pt")
-        and _normalise_model_name(file_name).find(normalised_model_name) >= 0
+        and any(
+            normalised_model_name in _normalise_model_name(file_name)
+            for normalised_model_name in normalised_model_names
+        )
     ]
     if len(matching_files) != 1:
         raise ValueError(
@@ -145,7 +151,7 @@ def _load_jlens_model() -> tuple[jlens.LensModel, jlens.JacobianLens]:
 
     hf_model = transformers.AutoModelForCausalLM.from_pretrained(
         model_name,
-        dtype=torch.bfloat16 if processing_device.type == "cuda" else torch.float32,
+        dtype=torch.float16 if processing_device.type == "cuda" else torch.float32,
         device_map=processing_device.type,
     )
 
