@@ -1,3 +1,4 @@
+import pandas as pd
 from loguru import logger
 
 from app.logger import setup_logger
@@ -26,3 +27,19 @@ async def run() -> None:
         await generate_dataset_async()
     else:
         generate_dataset()
+
+
+def build_training_dataset() -> pd.DataFrame:
+    """Build and return the training feature dataset.
+
+    This synchronous entry point is intended for notebook environments such as
+    Kaggle, where it can be invoked after project configuration is available.
+    """
+    setup_logger()
+
+    from training.dataset.build_dataset import build
+
+    logger.info("Starting training dataset build")
+    dataset = build()
+    logger.info("Training dataset build completed with {} rows", len(dataset))
+    return dataset

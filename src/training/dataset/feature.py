@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import torch
 import transformers
+from loguru import logger
 from sentence_transformers import SentenceTransformer
 
 from app.settings import settings
@@ -139,6 +140,9 @@ def _load_jlens_model() -> tuple[jlens.LensModel, jlens.JacobianLens]:
         raise ValueError("training.model_name must name a J-lens-supported Hugging Face model")
 
     processing_device = _torch_device(settings.training.processing_device)
+
+    logger.info("Loading language model {} on {}", model_name, processing_device)
+
     hf_model = transformers.AutoModelForCausalLM.from_pretrained(
         model_name,
         dtype=torch.bfloat16 if processing_device.type == "cuda" else torch.float32,
@@ -146,7 +150,10 @@ def _load_jlens_model() -> tuple[jlens.LensModel, jlens.JacobianLens]:
     )
 
     tokenizer = transformers.AutoTokenizer.from_pretrained(model_name)
+
     model = jlens.from_hf(hf_model, tokenizer)
+
+    logger.info("Loading matching J-lens checkpoint")
     lens = jlens.JacobianLens.from_pretrained(
         JLENS_REPOSITORY,
         filename=_find_lens_file(model_name),
@@ -368,26 +375,38 @@ def extract_jlens_features() -> None:
 
     model, lens = _load_jlens_model()
 
+    logger.info("Loading embedding model {}", settings.training.embedding_model_name)
+
     embedding_model = SentenceTransformer(
         settings.training.embedding_model_name,
         device=str(_torch_device(settings.training.processing_device)),
     )
+
+    logger.info("Extracting J-lens features for {} examples", len(ordered_manifest))
 
     features = _extract_features(ordered_manifest[TEXT_COLUMN], model, lens, embedding_model)
     feature_frame = _feature_frame(example_ids, features)
 
     match settings.training.pre_processed_dataset_format:
         case "NumPy":
+            output_path = str(FEATURE_EXTRACTED_BASE_FILE_PATH_NO_EXT) + ".npz"
+
             np.savez(
-                str(FEATURE_EXTRACTED_BASE_FILE_PATH_NO_EXT) + ".npz",
+                output_path,
                 allow_pickle=True,
                 **{
                     EXAMPLE_ID_COLUMN: feature_frame[EXAMPLE_ID_COLUMN].to_numpy(),
                     "features": feature_frame.iloc[:, 1:].to_numpy(),
                 },
             )
+
+            logger.info("Saved extracted features to {}", output_path)
         case "Parquet":
+            output_path = str(FEATURE_EXTRACTED_BASE_FILE_PATH_NO_EXT) + ".parquet"
+
             feature_frame.to_parquet(
-                str(FEATURE_EXTRACTED_BASE_FILE_PATH_NO_EXT) + ".parquet",
+                output_path,
                 index=False,
             )
+
+            logger.info("Saved extracted features to {}", output_path)
