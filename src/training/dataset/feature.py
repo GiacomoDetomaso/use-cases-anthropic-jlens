@@ -83,6 +83,13 @@ def _find_lens_file(model_name: str) -> str:
             for normalised_model_name in normalised_model_names
         )
     ]
+
+    canonical_files = [
+        file_name for file_name in matching_files if file_name.endswith("_jacobian_lens.pt")
+    ]
+    if len(canonical_files) == 1:
+        return canonical_files[0]
+
     if len(matching_files) != 1:
         raise ValueError(
             f"Could not find one J-lens checkpoint for {model_name!r} in {JLENS_REPOSITORY}. "
