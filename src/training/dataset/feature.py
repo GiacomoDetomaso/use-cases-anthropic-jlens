@@ -343,7 +343,7 @@ def _extract_features(
         # Read the model's next-token predispositions at every token position.
         lens_logits_dict, _, _ = lens.apply(model, text, layers=[target_layer])
 
-        logger.info(f"{i}/{len(texts)}) Lens extracted for text: {text}")
+        logger.info(f"{i + 1}/{len(texts)}) Lens extracted for text: {text}")
 
         pooled_features = _extract_embedding_features(
             lens_logits_dict[target_layer],
