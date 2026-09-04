@@ -5,16 +5,20 @@ from pathlib import Path
 import pandas as pd
 from loguru import logger
 
-from training.dataset._paths import FEATURE_EXTRACTED_BASE_FILE_PATH_NO_EXT
+from app.settings import settings
+from training.dataset._paths import get_feature_dataset_path
 from training.dataset.feature import extract_jlens_features, load_feature_dataset
 from training.dataset.splitter import EXAMPLE_ID_COLUMN, build_splits
 
 
 def _find_feature_dataset_path() -> Path | None:
-    for extension in (".npz", ".parquet"):
-        feature_path = FEATURE_EXTRACTED_BASE_FILE_PATH_NO_EXT.with_suffix(extension)
-        if feature_path.is_file():
-            return feature_path
+    feature_path = get_feature_dataset_path(
+        settings.training.model_name,
+        settings.training.embedding_pooling,
+        settings.training.pre_processed_dataset_format,
+    )
+    if feature_path.is_file():
+        return feature_path
     return None
 
 

@@ -12,9 +12,9 @@ from sentence_transformers import SentenceTransformer
 
 from app.settings import settings
 from training.dataset._paths import (
-    FEATURE_EXTRACTED_BASE_FILE_PATH_NO_EXT,
     JLENS_REPOSITORY,
     SPLIT_MANIFEST_PATH,
+    get_feature_dataset_path,
 )
 from training.dataset.splitter import EXAMPLE_ID_COLUMN, TEXT_COLUMN
 
@@ -405,11 +405,14 @@ def extract_jlens_features() -> None:
 
     features = _extract_features(ordered_manifest[TEXT_COLUMN], model, lens, embedding_model)
     feature_frame = _feature_frame(example_ids, features)
+    output_path = get_feature_dataset_path(
+        settings.training.model_name,
+        settings.training.embedding_pooling,
+        settings.training.pre_processed_dataset_format,
+    )
 
     match settings.training.pre_processed_dataset_format:
         case "NumPy":
-            output_path = str(FEATURE_EXTRACTED_BASE_FILE_PATH_NO_EXT) + ".npz"
-
             np.savez(
                 output_path,
                 allow_pickle=True,
@@ -421,8 +424,6 @@ def extract_jlens_features() -> None:
 
             logger.info("Saved extracted features to {}", output_path)
         case "Parquet":
-            output_path = str(FEATURE_EXTRACTED_BASE_FILE_PATH_NO_EXT) + ".parquet"
-
             feature_frame.to_parquet(
                 output_path,
                 index=False,

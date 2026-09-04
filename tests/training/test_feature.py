@@ -14,13 +14,6 @@ def split_manifest_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path
     return manifest_path
 
 
-@pytest.fixture
-def feature_dataset_base_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
-    output_path = tmp_path / "features"
-    monkeypatch.setattr(feature, "FEATURE_EXTRACTED_BASE_FILE_PATH_NO_EXT", output_path)
-    return output_path
-
-
 @pytest.mark.parametrize(
     ("embedding_pooling", "expected_features"),
     [
@@ -32,7 +25,7 @@ def feature_dataset_base_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
 def test_extract_jlens_features_saves_id_keyed_token_embedding_features(
     monkeypatch: pytest.MonkeyPatch,
     split_manifest_path: Path,
-    feature_dataset_base_path: Path,
+    tmp_path: Path,
     embedding_pooling: str,
     expected_features: list[float],
 ) -> None:
@@ -74,6 +67,8 @@ def test_extract_jlens_features_saves_id_keyed_token_embedding_features(
     monkeypatch.setattr(feature.settings.training, "processing_device", "cpu")
     monkeypatch.setattr(feature.settings.training, "output_device", "cpu")
     monkeypatch.setattr(feature.settings.training, "pre_processed_dataset_format", "NumPy")
+    artifact_path = tmp_path / f"features_test-model_{embedding_pooling}.npz"
+    monkeypatch.setattr(feature, "get_feature_dataset_path", lambda *args: artifact_path)
     monkeypatch.setattr(
         feature, "SentenceTransformer", lambda *args, **kwargs: FakeEmbeddingModel()
     )
@@ -81,7 +76,6 @@ def test_extract_jlens_features_saves_id_keyed_token_embedding_features(
 
     feature.extract_jlens_features()
 
-    artifact_path = feature_dataset_base_path.with_suffix(".npz")
     artifact = np.load(artifact_path)
     np.testing.assert_array_equal(artifact["example_id"], [0, 1])
     np.testing.assert_allclose(artifact["features"], [expected_features, expected_features])
