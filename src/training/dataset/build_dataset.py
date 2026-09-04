@@ -23,7 +23,7 @@ def _find_feature_dataset_path() -> Path | None:
 
 
 def build(remove_example_id_col=False) -> pd.DataFrame:
-    """Build the split manifest and return the feature dataset in tabular form."""
+    """Build the split manifest and return the configured pooling feature dataset."""
     logger.info("Building split manifest")
     build_splits()
 

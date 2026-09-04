@@ -1,3 +1,12 @@
+"""
+This module construct features to instances in the manifest, regardless
+of their split. It provides two public services:
+
+- `extract_jlens_features`: that builds the jlens pooled feature embeddings
+                            for every input dataset entry specified in the manifest
+-  `load_feature_dataset`:  load previously built feature dataset as a pandas `DataFrame`
+"""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -20,6 +29,9 @@ from training.dataset.splitter import EXAMPLE_ID_COLUMN, TEXT_COLUMN
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+EMBEDDING_POOLING_TYPES = ("mean", "max", "concat")
 
 
 def _normalise_model_name(model_name: str) -> str:
@@ -178,13 +190,13 @@ def _pool_candidate_embeddings(
     candidate_embeddings: torch.Tensor,
     decoded_candidates: list[str],
     embedding_model: SentenceTransformer,
+    pooling_type: str,
 ) -> torch.Tensor:
     """Pool token-candidate embeddings into one feature vector.
 
-    The pooling strategy is controlled by
-    ``settings.training.embedding_pooling``. Supported strategies are
-    arithmetic mean, element-wise maximum, logit-weighted mean, and
-    concatenation followed by sentence embedding.
+    Supported strategies are
+    arithmetic mean, element-wise maximum, and concatenation followed by
+    sentence embedding.
 
     Parameters
     ----------
@@ -195,6 +207,8 @@ def _pool_candidate_embeddings(
         Flattened list of decoded top-k token candidates.
     embedding_model : SentenceTransformer
         Sentence-transformer model used by the ``"concat"`` pooling method.
+    pooling_type : str
+        Pooling strategy to apply.
 
     Returns
     -------
@@ -206,26 +220,24 @@ def _pool_candidate_embeddings(
     ValueError
         If the configured pooling strategy is unsupported.
     """
-    match settings.training.embedding_pooling:
+    match pooling_type:
         case "mean":
             return candidate_embeddings.mean(dim=0)
         case "max":
             return candidate_embeddings.amax(dim=0)
-        case "logit_weighted":
-            raise NotImplementedError("Logit-weighted embedding pooling is not implemented")
         case "concat":
             return embedding_model.encode(
                 [" ".join(decoded_candidates)], convert_to_tensor=True
             ).to(_torch_device(settings.training.processing_device))[0]
 
-    raise ValueError(f"Unsupported embedding pooling: {settings.training.embedding_pooling}")
+    raise ValueError(f"Unsupported embedding pooling: {pooling_type}")
 
 
 def _extract_embedding_features(
     logits: torch.Tensor,
     tokenizer: Any,
     embedding_model: SentenceTransformer,
-) -> np.ndarray:
+) -> dict[str, np.ndarray]:
     """Convert J-lens logits into a pooled semantic feature vector.
 
     For every token position, the function retains the configured number of
@@ -245,9 +257,9 @@ def _extract_embedding_features(
 
     Returns
     -------
-    numpy.ndarray
-        One-dimensional pooled feature vector with shape
-        ``(embedding_size,)``.
+    dict[str, numpy.ndarray]
+        One-dimensional pooled feature vector for each supported pooling
+        strategy, each with shape ``(embedding_size,)``.
     """
     # Shape [n_position, k]: retain top k concepts per position.
     top_k = logits.topk(settings.training.k, dim=-1)
@@ -268,20 +280,29 @@ def _extract_embedding_features(
         decoded_candidates,
         convert_to_tensor=True,
     )
+
     expected_embeddings = top_k.indices.numel()
+
     if candidate_embeddings.ndim != 2 or candidate_embeddings.shape[0] != expected_embeddings:
         raise RuntimeError(
             "Token candidate embedding count does not match the requested top-k candidates: "
             f"expected {expected_embeddings}, received shape {tuple(candidate_embeddings.shape)}"
         )
 
-    pooled_features = _pool_candidate_embeddings(
-        candidate_embeddings,
-        decoded_candidates,
-        embedding_model,
-    )
+    output_device = _torch_device(settings.training.output_device)
 
-    return pooled_features.to(_torch_device(settings.training.output_device)).cpu().numpy()
+    return {
+        pooling_type: _pool_candidate_embeddings(
+            candidate_embeddings,
+            decoded_candidates,
+            embedding_model,
+            pooling_type,
+        )
+        .to(output_device)
+        .cpu()
+        .numpy()
+        for pooling_type in EMBEDDING_POOLING_TYPES
+    }
 
 
 def _extract_features(
@@ -289,7 +310,7 @@ def _extract_features(
     model: jlens.LensModel,
     lens: jlens.JacobianLens,
     embedding_model: SentenceTransformer,
-) -> np.ndarray:
+) -> dict[str, np.ndarray]:
     """Extract pooled J-lens features for a collection of text samples.
 
     Each text is passed through the Jacobian lens at the configured target
@@ -309,10 +330,13 @@ def _extract_features(
 
     Returns
     -------
-    numpy.ndarray
-        Feature matrix with shape ``(n_examples, embedding_size)``.
+    dict[str, numpy.ndarray]
+        Feature matrix for each pooling strategy, each with shape
+        ``(n_examples, embedding_size)``.
     """
-    features = []
+    features_by_pooling: dict[str, list[np.ndarray]] = {
+        pooling_type: [] for pooling_type in EMBEDDING_POOLING_TYPES
+    }
     target_layer = settings.training.target_layer
 
     for i, text in enumerate(texts.astype(str)):
@@ -321,23 +345,27 @@ def _extract_features(
 
         logger.info(f"{i}/{len(texts)}) Lens extracted for text: {text}")
 
-        features.append(
-            _extract_embedding_features(
-                lens_logits_dict[target_layer],
-                model.tokenizer,
-                embedding_model,
-            )
+        pooled_features = _extract_embedding_features(
+            lens_logits_dict[target_layer],
+            model.tokenizer,
+            embedding_model,
         )
 
-        logger.info(f"{i}/{len(texts)}) Feature appended")
+        for pooling_type, pooled_feature in pooled_features.items():
+            features_by_pooling[pooling_type].append(pooled_feature)
 
-    return np.stack(features)
+        logger.info("{}/{} features appended", i + 1, len(texts))
+
+    return {
+        pooling_type: np.stack(features) for pooling_type, features in features_by_pooling.items()
+    }
 
 
 def _feature_frame(example_ids: np.ndarray, features: np.ndarray) -> pd.DataFrame:
     feature_columns = [f"feature_{index}" for index in range(features.shape[1])]
     feature_frame = pd.DataFrame(features, columns=feature_columns)
     feature_frame.insert(0, EXAMPLE_ID_COLUMN, example_ids)
+
     return feature_frame
 
 
@@ -365,8 +393,8 @@ def extract_jlens_features() -> None:
     extracts one pooled feature vector per text sample, and saves the output
     with stable example identifiers.
 
-    Output format is controlled by
-    ``settings.training.pre_processed_dataset_format``:
+    A feature dataset is produced for every supported pooling strategy. Output
+    format is controlled by ``settings.training.pre_processed_dataset_format``:
 
     - ``"NumPy"``: writes a compressed archive containing ``example_id`` and
       ``features`` arrays.
@@ -403,30 +431,32 @@ def extract_jlens_features() -> None:
 
     logger.info("Extracting J-lens features for {} examples", len(ordered_manifest))
 
-    features = _extract_features(ordered_manifest[TEXT_COLUMN], model, lens, embedding_model)
-    feature_frame = _feature_frame(example_ids, features)
-    output_path = get_feature_dataset_path(
-        settings.training.model_name,
-        settings.training.embedding_pooling,
-        settings.training.pre_processed_dataset_format,
+    features_by_pooling = _extract_features(
+        ordered_manifest[TEXT_COLUMN], model, lens, embedding_model
     )
 
-    match settings.training.pre_processed_dataset_format:
-        case "NumPy":
-            np.savez(
-                output_path,
-                allow_pickle=True,
-                **{
-                    EXAMPLE_ID_COLUMN: feature_frame[EXAMPLE_ID_COLUMN].to_numpy(),
-                    "features": feature_frame.iloc[:, 1:].to_numpy(),
-                },
-            )
+    for pooling_type, features in features_by_pooling.items():
+        feature_frame = _feature_frame(example_ids, features)
+        output_path = get_feature_dataset_path(
+            settings.training.model_name,
+            pooling_type,
+            settings.training.pre_processed_dataset_format,
+        )
 
-            logger.info("Saved extracted features to {}", output_path)
-        case "Parquet":
-            feature_frame.to_parquet(
-                output_path,
-                index=False,
-            )
+        match settings.training.pre_processed_dataset_format:
+            case "NumPy":
+                np.savez(
+                    output_path,
+                    allow_pickle=True,
+                    **{
+                        EXAMPLE_ID_COLUMN: feature_frame[EXAMPLE_ID_COLUMN].to_numpy(),
+                        "features": feature_frame.iloc[:, 1:].to_numpy(),
+                    },
+                )
+            case "Parquet":
+                feature_frame.to_parquet(
+                    output_path,
+                    index=False,
+                )
 
-            logger.info("Saved extracted features to {}", output_path)
+        logger.info("Saved {} features to {}", pooling_type, output_path)

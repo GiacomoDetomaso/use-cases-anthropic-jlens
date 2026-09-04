@@ -14,20 +14,10 @@ def split_manifest_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path
     return manifest_path
 
 
-@pytest.mark.parametrize(
-    ("embedding_pooling", "expected_features"),
-    [
-        ("mean", [1.5, 1.0]),
-        ("max", [2.0, 1.0]),
-        ("concat", [99.0, 99.0]),
-    ],
-)
-def test_extract_jlens_features_saves_id_keyed_token_embedding_features(
+def test_extract_jlens_features_saves_every_pooling_strategy(
     monkeypatch: pytest.MonkeyPatch,
     split_manifest_path: Path,
     tmp_path: Path,
-    embedding_pooling: str,
-    expected_features: list[float],
 ) -> None:
     import torch
 
@@ -62,13 +52,20 @@ def test_extract_jlens_features_saves_id_keyed_token_embedding_features(
         tokenizer = FakeTokenizer()
 
     monkeypatch.setattr(feature.settings.training, "k", 2)
-    monkeypatch.setattr(feature.settings.training, "embedding_pooling", embedding_pooling)
+    monkeypatch.setattr(feature.settings.training, "embedding_pooling", "max")
     monkeypatch.setattr(feature.settings.training, "target_layer", 14)
     monkeypatch.setattr(feature.settings.training, "processing_device", "cpu")
     monkeypatch.setattr(feature.settings.training, "output_device", "cpu")
     monkeypatch.setattr(feature.settings.training, "pre_processed_dataset_format", "NumPy")
-    artifact_path = tmp_path / f"features_test-model_{embedding_pooling}.npz"
-    monkeypatch.setattr(feature, "get_feature_dataset_path", lambda *args: artifact_path)
+    artifact_paths = {
+        pooling_type: tmp_path / f"features_test-model_{pooling_type}.npz"
+        for pooling_type in feature.EMBEDDING_POOLING_TYPES
+    }
+    monkeypatch.setattr(
+        feature,
+        "get_feature_dataset_path",
+        lambda model_name, pooling_type, output_format: artifact_paths[pooling_type],
+    )
     monkeypatch.setattr(
         feature, "SentenceTransformer", lambda *args, **kwargs: FakeEmbeddingModel()
     )
@@ -76,23 +73,18 @@ def test_extract_jlens_features_saves_id_keyed_token_embedding_features(
 
     feature.extract_jlens_features()
 
-    artifact = np.load(artifact_path)
-    np.testing.assert_array_equal(artifact["example_id"], [0, 1])
-    np.testing.assert_allclose(artifact["features"], [expected_features, expected_features])
-
-    feature_dataset = feature.load_feature_dataset(artifact_path)
-    assert list(feature_dataset.columns) == ["example_id", "feature_0", "feature_1"]
-    np.testing.assert_allclose(feature_dataset.iloc[:, 1:], [expected_features, expected_features])
-
-
-def test_logit_weighted_pooling_is_not_implemented(monkeypatch: pytest.MonkeyPatch) -> None:
-    import torch
-
-    monkeypatch.setattr(feature.settings.training, "embedding_pooling", "logit_weighted")
-
-    with pytest.raises(NotImplementedError, match="not implemented"):
-        feature._pool_candidate_embeddings(
-            torch.tensor([[1.0, 2.0]]),
-            ["token"],
-            embedding_model=None,  # type: ignore[arg-type]
+    expected_features = {
+        "mean": [1.5, 1.0],
+        "max": [2.0, 1.0],
+        "concat": [99.0, 99.0],
+    }
+    for pooling_type, artifact_path in artifact_paths.items():
+        artifact = np.load(artifact_path)
+        np.testing.assert_array_equal(artifact["example_id"], [0, 1])
+        np.testing.assert_allclose(
+            artifact["features"],
+            [expected_features[pooling_type], expected_features[pooling_type]],
         )
+
+        feature_dataset = feature.load_feature_dataset(artifact_path)
+        assert list(feature_dataset.columns) == ["example_id", "feature_0", "feature_1"]
