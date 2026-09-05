@@ -341,7 +341,12 @@ def _extract_features(
 
     for i, text in enumerate(texts.astype(str)):
         # Read the model's next-token predispositions at every token position.
-        lens_logits_dict, _, _ = lens.apply(model, text, layers=[target_layer])
+        lens_logits_dict, _, _ = lens.apply(
+            model=model,
+            prompt=text,
+            layers=[target_layer],
+            max_seq_len=settings.ai_models.generation.generation_params.get("max_tokens", 512),
+        )
 
         logger.info(f"{i + 1}/{len(texts)}) Lens extracted for text: {text}")
 
